@@ -1,0 +1,16 @@
+:root {
+  --primary-black: #000000;
+  --secondary-black: #1a1a1a;
+  --pure-white: #ffffff;
+  --off-white: #e5e5e5;
+  --gray-text: #737373;
+  --animation-duration: 0.3s;
+}
+
+.dark {
+  --primary-black: #121212;
+  --secondary-black: #1a1a1a;
+  --pure-white: #e5e5e5;
+  --off-white: #a3a3a3;
+  --gray-text: #e0e0e0;
+}

@@ -1,0 +1,58 @@
+.auth-container {
+  background-color: var(--primary-black);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-card {
+  background-color: var(--secondary-black);
+  padding: 2rem;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  transform: translateY(20px);
+  opacity: 0;
+  animation: slideUp var(--animation-duration) ease forwards;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.auth-input {
+  background-color: var(--primary-black);
+  border: 1px solid var(--gray-text);
+  color: var(--pure-white);
+  padding: 12px;
+  border-radius: 8px;
+  width: 100%;
+  margin: 8px 0;
+  transition: all var(--animation-duration) ease;
+}
+
+.auth-input:focus {
+  border-color: var(--pure-white);
+  outline: none;
+  box-shadow: 0 0 5px var(--pure-white);
+}
+
+.auth-button {
+  background-color: var(--blue-600);
+  color: var(--pure-white);
+  padding: 12px;
+  border-radius: 8px;
+  width: 100%;
+  margin-top: 16px;
+  font-weight: bold;
+  transition: all var(--animation-duration) ease;
+}
+
+.auth-button:hover {
+  background-color: var(--blue-700);
+}
+
+@keyframes slideUp {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

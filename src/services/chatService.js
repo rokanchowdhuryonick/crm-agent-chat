@@ -100,7 +100,7 @@ export const chatService = {
     try {
       const response = await axios.get(`/chat/${sessionId}/messages`);
       // Extract the messages array if it exists, otherwise return the whole response data
-      return response.data.messages || response.data;
+      return response.data.messages || response.data || [];
     } catch (error) {
       console.error('Error loading chat history:', error);
       throw error;

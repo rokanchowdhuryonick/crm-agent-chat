@@ -1,0 +1,13 @@
+# Environment variables and secrets
+env:
+  - variable: NEXT_PUBLIC_API_HOST_URL
+    value: https://ai-agent-crm-backend.aisapiens.online
+
+  - variable: NEXT_PUBLIC_API_BASE_URL
+    value: https://ai-agent-crm-backend.aisapiens.online/api
+
+  - variable: NEXT_PUBLIC_PUSHER_APP_KEY
+    value: 161f47886ca8a5914408
+
+  - variable: NEXT_PUBLIC_PUSHER_APP_CLUSTER
+    value: ap4

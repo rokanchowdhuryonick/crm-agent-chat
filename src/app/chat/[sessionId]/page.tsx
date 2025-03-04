@@ -74,12 +74,14 @@ export default function ChatSessionPage() {
         
         // Load chat history
         const history = await chatService.loadChatHistory(sessionId);
+        // Add this type assertion or type check to fix the error
+        const chatMessages = Array.isArray(history) ? history : [];
         
         // Transform history into the expected message format
-        const formattedHistory = history.map((msg: ChatMessage) => ({
+        const formattedHistory = chatMessages.map((msg: ChatMessage) => ({
           id: msg.id,
           text: msg.message,
-          sender: msg.sender_id === user.id ? 'user' : 'bot'
+          sender: (msg.sender_id === user?.id) ? 'user' : 'bot'
         }));
         
         setMessages(formattedHistory);

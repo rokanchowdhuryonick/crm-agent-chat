@@ -4,5 +4,5 @@ export const CHANNELS = {
   };
   
   export const EVENTS = {
-    MESSAGE_SENT: 'MessageSent',
+    MESSAGE_SENT: '.NewMessage',
   };

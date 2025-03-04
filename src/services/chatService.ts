@@ -4,6 +4,21 @@
 import axios from './axios';
 import { initEcho, getEcho } from './echo';
 
+export interface ChatMessage {
+  id: number;
+  message: string;
+  sender_id: number;
+  chat_session_id: number;
+  attachment: string | null;
+  type: string;
+  created_at: string;
+  updated_at: string;
+  sender?: {
+    id: number;
+    name: string;
+  };
+}
+
 export const chatService = {
     // Add a flag to track initialization
   isInitialized: false,
@@ -91,7 +106,7 @@ export const chatService = {
     });
     
     return () => {
-      channel.stopListening('MessageSent');
+      channel.stopListening('.NewMessage');
     };
   },
   
@@ -100,10 +115,12 @@ export const chatService = {
     try {
       const response = await axios.get(`/chat/${sessionId}/messages`);
       // Extract the messages array if it exists, otherwise return the whole response data
-      return response.data.messages || response.data || [];
+      // return response.data.messages || response.data || [];
+      return (response.data.messages || response.data || []) as ChatMessage[];
     } catch (error) {
       console.error('Error loading chat history:', error);
-      throw error;
+      // throw error;
+      return [];
     }
   }
 };

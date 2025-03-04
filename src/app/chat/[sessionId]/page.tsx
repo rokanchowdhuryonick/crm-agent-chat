@@ -7,7 +7,7 @@ import { RouteGuard } from '../../../components/auth/RouteGuard';
 import { chatService } from '../../../services/chatService';
 import { getEcho } from '../../../services/echo';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { AuthContextType, User } from '../../../types/auth';
+import type { AuthContextType } from '../../../types/auth';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

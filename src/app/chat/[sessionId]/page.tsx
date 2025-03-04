@@ -19,6 +19,21 @@ type Message = {
   sender: 'bot' | 'user';
 };
 
+interface ChatMessage {
+  id: number;
+  message: string;
+  sender_id: number;
+  chat_session_id: number;
+  attachment: string | null;
+  type: string;
+  created_at: string;
+  updated_at: string;
+  sender?: {
+    id: number;
+    name: string;
+  };
+}
+
 export default function ChatSessionPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -61,7 +76,7 @@ export default function ChatSessionPage() {
         const history = await chatService.loadChatHistory(sessionId);
         
         // Transform history into the expected message format
-        const formattedHistory = history.map((msg: any) => ({
+        const formattedHistory = history.map((msg: ChatMessage) => ({
           id: msg.id,
           text: msg.message,
           sender: msg.sender_id === user.id ? 'user' : 'bot'

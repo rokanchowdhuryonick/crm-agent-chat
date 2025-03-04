@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MessageSquarePlus, Loader2, Clock } from 'lucide-react';
+import { AuthContextType } from '@/types/auth';
 
 interface ChatSession {
   id: number;
@@ -24,7 +25,7 @@ export default function ChatSessionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const { user } = useAuth();
+  const { user } =  useAuth() as AuthContextType;
   const router = useRouter();
 
   // Load chat sessions on mount

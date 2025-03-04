@@ -1,38 +1,32 @@
-// src/app/page.tsx
 'use client';
 
-import React, { useState } from 'react';
-import { AuthScreen } from '@/components/auth/AuthScreen';
-import { ChatScreen } from '@/components/chat/ChatScreen';
-
-interface Message {
-  id: number;
-  text: string;
-  sender: 'user' | 'bot';
-}
+import { useAuth } from '../contexts/AuthContext';
+import { AuthScreen } from '../components/auth/AuthScreen';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, text: "Hello! How can I help you today?", sender: "bot" },
-    { id: 2, text: "Hi! I have a question about your services.", sender: "user" },
-  ]);
-
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-  };
-
-  const handleSendMessage = (text: string) => {
-    setMessages(prev => [
-      ...prev,
-      { id: prev.length + 1, text, sender: 'user' },
-      { id: prev.length + 2, text: 'This is a mock response!', sender: 'bot' }
-    ]);
-  };
-
-  if (!isAuthenticated) {
-    return <AuthScreen onLogin={handleLogin} />;
+  const { isAuthenticated, loading } = useAuth();
+  const router = useRouter();
+  
+  useEffect(() => {
+    // Redirect to dashboard if authenticated
+    if (isAuthenticated && !loading) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, loading, router]);
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
   }
-
-  return <ChatScreen messages={messages} onSendMessage={handleSendMessage} />;
+  
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
+  
+  return null; // Will redirect in useEffect
 }

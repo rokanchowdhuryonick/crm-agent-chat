@@ -37,7 +37,7 @@ export const initEcho = (token) => {
             }),
           };
           
-          fetch(`${process.env.NEXT_PUBLIC_API_HOST_URL}/broadcasting/auth`, options)
+          fetch(`${process.env.NEXT_PUBLIC_API_HOST_URL}/api/broadcasting/auth`, options)
             .then(response => response.json())
             .then(data => {
               callback(null, data);

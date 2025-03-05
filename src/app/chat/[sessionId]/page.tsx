@@ -46,6 +46,7 @@ export default function ChatSessionPage() {
   const sessionId = params?.sessionId as string;
   const router = useRouter();
   const { user, token } = useAuth() as AuthContextType;
+  const recentlySentRef = useRef<Set<string>>(new Set());
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -93,14 +94,38 @@ export default function ChatSessionPage() {
         
         unsubscribe = chatService.subscribeToChat(sessionId, (newMessage: ChatMessage) => {
         console.log('Real-time message received:', newMessage);
-        setMessages(prev => [
+        setMessages(prev => {
+          // Don't add if this message ID already exists
+          if (prev.some(msg => msg.id === newMessage.id)) {
+            console.log('Duplicate message detected, ignoring:', newMessage.id);
+            return prev;
+          }
+
+          // Check if this is our own recently sent message coming back from the server
+          if (newMessage.sender_id === user?.id && 
+            recentlySentRef.current.has(newMessage.message)) {
+            console.log('Own message detected coming back from server, ignoring');
+            return prev;
+          }
+
+          // Also check for duplicate content from same sender (handles optimistic updates)
+          if (prev.some(msg => 
+            msg.text === newMessage.message && 
+            msg.sender === (newMessage.sender_id === user?.id ? 'user' : 'bot')
+          )) {
+            console.log('Duplicate content detected, ignoring message');
+            return prev;
+          }
+          
+          return [
             ...prev,
             {
-            id: newMessage.id,
-            text: newMessage.message,
-            sender: newMessage.sender_id === user.id ? 'user' : 'bot'
+              id: newMessage.id,
+              text: newMessage.message,
+              sender: newMessage.sender_id === user?.id ? 'user' : 'bot'
             }
-        ]);
+          ];
+        });
         });
         
       } catch (err) {
@@ -114,12 +139,23 @@ export default function ChatSessionPage() {
     initializeChat();
     
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {
+        console.log('Cleaning up chat subscription');
+        unsubscribe();
+      }
     };
-  }, [sessionId, user]);
+  }, [sessionId, user, token]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !sessionId) return;
+
+    const messageText = newMessage.trim();
+    // Track this message to prevent duplication when it comes back from the server
+    recentlySentRef.current.add(messageText);
+    // Clear tracking after a reasonable time (5 seconds)
+    setTimeout(() => {
+      recentlySentRef.current.delete(messageText);
+    }, 5000);
     
     // Optimistic UI update
     const tempId = Date.now();
@@ -128,13 +164,12 @@ export default function ChatSessionPage() {
       { id: tempId, text: newMessage, sender: 'user' }
     ]);
     
-    const messageText = newMessage;
     setNewMessage('');
     setSending(true);
     
     try {
       await chatService.sendMessage(sessionId, messageText);
-      // Real message will come through the Pusher channel
+      // Real message will come through the Pusher channel, but we'll ignore it thanks to our tracking
     } catch (err) {
       console.error('Error sending message:', err);
       // Remove the optimistic message on error

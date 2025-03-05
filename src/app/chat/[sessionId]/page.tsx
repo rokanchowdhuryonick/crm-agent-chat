@@ -17,13 +17,15 @@ import { Send, ArrowLeft, Loader2 } from 'lucide-react';
 type Message = {
   id: number;
   text: string;
-  sender: 'bot' | 'user';
+  sender: 'bot' | 'user' | 'system';
+  type?: string;
+  timestamp?: string;
 };
 
 interface ChatMessage {
   id: number;
   message: string;
-  sender_id: number;
+  sender_id: number | null;
   chat_session_id: number;
   attachment: string | null;
   type: string;
@@ -32,7 +34,7 @@ interface ChatMessage {
   sender?: {
     id: number;
     name: string;
-  };
+  } | null;
 }
 
 export default function ChatSessionPage() {
@@ -83,7 +85,9 @@ export default function ChatSessionPage() {
         const formattedHistory = chatMessages.map((msg: ChatMessage) => ({
           id: msg.id,
           text: msg.message,
-          sender: (user && msg.sender_id === user.id) ? 'user' : 'bot'
+          sender: msg.sender_id === user?.id ? 'user' : (msg.type === 'stage' ? 'system' : 'bot'),
+          type: msg.type,
+          timestamp: msg.created_at
         })) as Message[];
         
         setMessages(formattedHistory);
@@ -111,7 +115,8 @@ export default function ChatSessionPage() {
           // Also check for duplicate content from same sender (handles optimistic updates)
           if (prev.some(msg => 
             msg.text === newMessage.message && 
-            msg.sender === (newMessage.sender_id === user?.id ? 'user' : 'bot')
+            msg.sender === (newMessage.sender_id === user?.id ? 'user' : 
+                           (newMessage.type === 'stage' ? 'system' : 'bot'))
           )) {
             console.log('Duplicate content detected, ignoring message');
             return prev;
@@ -122,7 +127,9 @@ export default function ChatSessionPage() {
             {
               id: newMessage.id,
               text: newMessage.message,
-              sender: newMessage.sender_id === user?.id ? 'user' : 'bot'
+              sender: newMessage.sender_id === user?.id ? 'user' : (newMessage.type === 'stage' ? 'system' : 'bot'),
+              type: newMessage.type,
+              timestamp: newMessage.created_at
             }
           ];
         });
@@ -161,7 +168,7 @@ export default function ChatSessionPage() {
     const tempId = Date.now();
     setMessages(prev => [
       ...prev,
-      { id: tempId, text: newMessage, sender: 'user' }
+      { id: tempId, text: newMessage, sender: 'user', timestamp: new Date().toISOString() }
     ]);
     
     setNewMessage('');
@@ -221,20 +228,44 @@ export default function ChatSessionPage() {
                 ) : (
                   <div className="space-y-4">
                     {messages.map((message) => (
-                      <div
-                        key={message.id}
+                      <div key={message.id}
                         className={`flex ${
-                          message.sender === 'user' ? 'justify-end' : 'justify-start'
+                          message.sender === 'user' 
+                            ? 'justify-end' 
+                            : message.sender === 'system'
+                              ? 'justify-center'  // Center system messages
+                              : 'justify-start'
                         }`}
                       >
                         <div
-                          className={`rounded-xl px-4 py-3 max-w-[80%] border shadow-md ${
+                          className={`rounded-xl px-4 py-3 ${
+                            message.sender === 'system' 
+                              ? 'max-w-[95%] w-4/5' // Keep the width settings
+                              : 'max-w-[80%] w-2/6'
+                          } border shadow-md ${
                             message.sender === 'user'
-                              ? 'bg-secondary-black text-off-white border-gray-600' 
-                              : 'bg-gradient-to-br from-gray-900 to-black text-gray-300 border-gray-600'
+                              ? 'bg-secondary-black text-off-white border-gray-600 text-sm' 
+                              : message.sender === 'system'
+                                ? 'bg-gray-700 text-gray-300 border-gray-800 text-sm' // More minimal dark styling
+                                : 'bg-gradient-to-br from-gray-900 to-black text-gray-300 text-sm border-gray-600'
                           }`}
                         >
+                          {message.sender === 'system' && <div className="text-xs text-purple-300 mb-1">System</div>}
+                          {message.sender !== 'system' && <div className="text-sm text-gray-300 mb-1"><b>AI Agent</b></div>}
                           {message.text}
+                          {message.timestamp && (
+                            <div className="text-xs text-gray-500 mt-1 text-right">
+                            {new Date(message.timestamp).toLocaleString('en-GB', {
+                              day: 'numeric',
+                              month: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              hour12: true
+                            })}
+                          </div>
+                          )}
                         </div>
                       </div>
                     ))}

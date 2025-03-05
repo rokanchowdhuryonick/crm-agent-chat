@@ -61,9 +61,9 @@ export const ChatScreen = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {messages.map((message) => (
+                  {messages.map((message, index) => (
                     <div
-                      key={message.id}
+                      key={`${message.id}-${index}`}
                       className={`flex ${
                         message.sender === 'user' ? 'justify-end' : 'justify-start'
                       }`}

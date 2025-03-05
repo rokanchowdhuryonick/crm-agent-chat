@@ -121,6 +121,14 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateToken = (newToken) => {
+    setToken(newToken);
+    localStorage.setItem('auth_token', newToken);
+    
+    // Re-initialize Echo with the new token
+    chatService.initialize(newToken);
+  };
+
   // Create the context value object
   const contextValue = {
     user,
@@ -129,6 +137,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    updateToken,
     isAuthenticated: !!token
   };
 

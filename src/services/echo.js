@@ -12,6 +12,16 @@ export const initEcho = (token) => {
     console.warn('Echo initialization skipped on server');
     return null;
   }
+
+  // Don't initialize again if we already have an instance with this token
+  if (echoInstance) {
+    // Only initialize if token is different
+    const currentToken = localStorage.getItem('auth_token');
+    if (currentToken === token) {
+      console.log('Echo already initialized with this token');
+      return echoInstance;
+    }
+  }
   
   // Make Pusher available globally (only in browser)
   window.Pusher = Pusher;
@@ -37,7 +47,7 @@ export const initEcho = (token) => {
             }),
           };
           
-          fetch(`${process.env.NEXT_PUBLIC_API_HOST_URL}/broadcasting/auth`, options)
+          fetch(`${process.env.NEXT_PUBLIC_API_HOST_URL}/api/broadcasting/auth`, options)
             .then(response => response.json())
             .then(data => {
               callback(null, data);

@@ -30,6 +30,7 @@ export const initEcho = (token) => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
+            credentials: 'include',
             body: JSON.stringify({
               socket_id: socketId,
               channel_name: channel.name,

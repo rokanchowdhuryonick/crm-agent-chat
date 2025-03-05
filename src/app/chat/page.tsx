@@ -56,9 +56,9 @@ export default function ChatSessionsPage() {
     
     try {
       setCreating(true);
-      const session = await chatService.startChatSession(user.id);
+      const sessionData = await chatService.startChatSession(user.id);
       // Navigate to the new chat session
-      router.push(`/chat/${session.id}`);
+      router.push(`/chat/${sessionData.session.id}`);
     } catch (err) {
       console.error('Error creating chat session:', err);
       setError('Failed to create new chat session');

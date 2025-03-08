@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
         pathname: '/public-files/**',
       },
       // Add production domain here when deployed
+      {
+        protocol: 'https',
+        hostname: 'ai-agent-crm-backend.aisapiens.online',
+        port: '',
+        pathname: '/public-files/**',
+      },
     ],
   },
 };

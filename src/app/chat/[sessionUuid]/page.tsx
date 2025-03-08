@@ -237,22 +237,27 @@ export default function ChatSessionPage() {
         chatService.initialize(token);
         console.log('Echo reinitialized in chat session page');
         
-        // Add connection status event listeners
+        // Add connection status event listeners using Echo's built-in methods
         const echo = getEcho();
         if (echo) {
-          echo.connector.socket.on('disconnect', () => {
+          // These should work without accessing socket directly
+          echo.connector.on('disconnected', () => {
             showToast.error('Connection lost. Reconnecting...');
           });
           
-          echo.connector.socket.on('reconnect', () => {
+          echo.connector.on('connected', () => {
             showToast.success('Reconnected!');
           });
           
           // Clean up event listeners on unmount
           return () => {
-            echo.connector.socket.off('disconnect');
-            echo.connector.socket.off('reconnect');
+            if (echo && echo.connector) {
+              echo.connector.off('disconnected');
+              echo.connector.off('connected');
+            }
           };
+        } else {
+          console.warn('Echo is not available');
         }
       }
     }, [token]);

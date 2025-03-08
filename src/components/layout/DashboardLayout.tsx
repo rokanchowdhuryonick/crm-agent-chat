@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import Link from 'next/link';
@@ -27,6 +27,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     await logout();
     router.push('/');
   };
+  
+  useEffect(() => {
+    if ('serviceWorker' in navigator && typeof window !== 'undefined') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then(registration => {
+            console.log('Service Worker registered with scope:', registration.scope);
+          })
+          .catch(err => {
+            console.error('Service Worker registration failed:', err);
+          });
+      });
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
@@ -34,7 +49,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       <header className="bg-gray-800 border-b border-gray-700 shadow-lg">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <span className="text-xl font-bold text-blue-500">AI Agent CRM</span>
+            <span className="text-xl font-bold text-blue-500">AI Agent</span>
           </div>
           
           {/* Mobile Menu Button */}
@@ -106,7 +121,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       
       {/* Footer */}
       <footer className="bg-gray-800 border-t border-gray-700 p-4 text-center text-gray-400 text-sm">
-        <p>© {new Date().getFullYear()} AI Agent CRM. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} AI Agent. All rights reserved.</p>
       </footer>
     </div>
   );
@@ -130,3 +145,4 @@ const MobileNavItem = ({ href, icon, text, onClick }: { href: string, icon: Reac
     <span>{text}</span>
   </Link>
 );
+

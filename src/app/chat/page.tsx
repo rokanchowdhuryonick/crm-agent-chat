@@ -8,11 +8,13 @@ import { chatService } from '../../services/chatService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MessageSquarePlus, Loader2, Clock } from 'lucide-react';
+import { MessageSquarePlus, Loader2, Clock, RefreshCw, Tag  } from 'lucide-react';
 import { AuthContextType } from '@/types/auth';
 
 interface ChatSession {
   id: number;
+  uuid: string,
+  name: string,
   customer_id: number;
   agent_id: number | null;
   status: string;
@@ -58,7 +60,7 @@ export default function ChatSessionsPage() {
       setCreating(true);
       const sessionData = await chatService.startChatSession(user.id);
       // Navigate to the new chat session
-      router.push(`/chat/${sessionData.session.id}`);
+      router.push(`/chat/${sessionData.session.uuid}`);
     } catch (err) {
       console.error('Error creating chat session:', err);
       setError('Failed to create new chat session');
@@ -116,26 +118,29 @@ export default function ChatSessionsPage() {
                 <Card 
                   key={session.id} 
                   className="bg-gray-800 border-gray-700 hover:border-blue-500 cursor-pointer transition-all"
-                  onClick={() => router.push(`/chat/${session.id}`)}
+                  onClick={() => router.push(`/chat/${session.uuid}`)}
                 >
                   <CardHeader>
-                    <CardTitle className="text-lg">Session #{session.id}</CardTitle>
+                    <CardTitle className="text-lg">{session.name || `Session #${session.id}`}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center text-sm text-gray-400 mb-2">
                       <Clock className="h-4 w-4 mr-2" />
                       Created: {formatDate(session.created_at)}
                     </div>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className={`px-2 py-1 rounded text-xs ${
+                    <div className="flex items-center text-sm text-gray-400 mb-2">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Last updated: {formatDate(session.updated_at)}
+                    </div>
+                    <div className="flex items-center mt-2">
+                      <Tag className="h-4 w-4 mr-2 text-gray-400" />
+                      <span className="text-sm text-gray-400">Status: </span>
+                      <span className={`ml-1 px-2 py-1 rounded text-xs ${
                         session.status === 'active' ? 'bg-green-900/30 text-green-400' :
                         session.status === 'closed' ? 'bg-red-900/30 text-red-400' :
                         'bg-yellow-900/30 text-yellow-400'
                       }`}>
                         {session.status.toUpperCase()}
-                      </span>
-                      <span className="text-sm text-gray-400">
-                        Last updated: {formatDate(session.updated_at)}
                       </span>
                     </div>
                   </CardContent>

@@ -10,6 +10,19 @@ const nextConfig: NextConfig = {
     // This allows production builds to successfully complete even with TypeScript errors
     ignoreBuildErrors: true,
   },
+  images: {
+    // domains: ['127.0.0.1', 'localhost'],
+    // Optional: If your API might change in production
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        port: '8000',
+        pathname: '/public-files/**',
+      },
+      // Add production domain here when deployed
+    ],
+  },
 };
 
 export default nextConfig;

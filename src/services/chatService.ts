@@ -59,23 +59,49 @@ export const chatService = {
   },
   
   // Send a message in a specific session
-  async sendMessage(sessionId, message, type = 'text') {
+  async sendMessage(sessionUuid, message, attachment = null, type = 'text') {
     try {
-      const response = await axios.post(`/chat/${sessionId}/send`, {
-        chat_session_id: sessionId,
-        message,
-        type
-      });
-      
-      return response.data;
+      // Create FormData if there's an attachment
+      if (attachment) {
+        const formData = new FormData();
+        // Only append message if it's not empty
+        if (message && message.trim()) {
+          formData.append('message', message);
+        }
+        formData.append('type', type);
+        formData.append('attachment', attachment);
+        
+        const response = await axios.post(`/chat/${sessionUuid}/send`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        return response.data;
+      } else {
+        // Regular text message
+        const response = await axios.post(`/chat/${sessionUuid}/send`, {
+          message,
+          type
+        });
+        
+        return response.data;
+      }
     } catch (error) {
       console.error('Error sending message:', error);
+      // Extract the error message from the API response
+      if (error.response && error.response.data && error.response.data.error) {
+        throw new Error(error.response.data.error);
+      } else if (error.response && error.response.data && error.response.data.message) {
+        throw new Error(error.response.data.message);
+      }
+
       throw error;
     }
   },
   
   // Subscribe to a private chat channel
-  subscribeToChat(sessionId, onMessageReceived) {
+  subscribeToChat(sessionUuid, onMessageReceived) {
     if (typeof window === 'undefined') return () => {};
     
     let echo = getEcho();  // Change from const to let
@@ -93,10 +119,10 @@ export const chatService = {
       return () => {};
     }
       
-    console.log(`Subscribing to channel: chat.${sessionId}`);
+    console.log(`Subscribing to channel: chat.${sessionUuid}`);
     
     // Use the correct channel format that your Laravel app expects
-    const channel = echo.private(`chat.${sessionId}`);
+    const channel = echo.private(`chat.${sessionUuid}`);
     
     // Listen to the MessageSent event
     channel.listen('.NewMessage', (e) => {
@@ -111,9 +137,9 @@ export const chatService = {
   },
   
   // Load chat history for a specific session
-  async loadChatHistory(sessionId) {
+  async loadChatHistory(sessionUuid) {
     try {
-      const response = await axios.get(`/chat/${sessionId}/messages`);
+      const response = await axios.get(`/chat/${sessionUuid}/messages`);
       // Extract the messages array if it exists, otherwise return the whole response data
       // return response.data.messages || response.data || [];
       return (response.data.messages || response.data || []) as ChatMessage[];
@@ -122,5 +148,30 @@ export const chatService = {
       // throw error;
       return [];
     }
+  },
+
+  // Get details for a specific chat session
+  async getChatSession(sessionUuid) {
+    try {
+      const response = await axios.get(`/chat/${sessionUuid}/details`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting chat session details:', error);
+      throw error;
+    }
+  },
+
+  async updateChatSessionName(sessionUuid, name) {
+    try {
+      const response = await axios.put(`/chat/${sessionUuid}/details`, {
+        name
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating chat session name:', error);
+      throw error;
+    }
   }
+
+
 };

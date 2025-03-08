@@ -89,10 +89,19 @@ export const chatService = {
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      // Extract the error message from the API response
-      if (error.response && error.response.data && error.response.data.error) {
+      // Handle validation errors with nested error objects
+      if (error.response?.data?.errors) {
+        // For validation errors, create a formatted message from all error fields
+        const errorMessages = Object.entries(error.response.data.errors)
+          .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+          .join('\n');
+        
+        throw new Error(errorMessages);
+      }
+      // Handle simple error messages
+      else if (error.response?.data?.error) {
         throw new Error(error.response.data.error);
-      } else if (error.response && error.response.data && error.response.data.message) {
+      } else if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
       }
 

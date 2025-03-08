@@ -15,6 +15,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, ArrowLeft, Loader2, Check, X, Edit2, Paperclip, File as FileIcon } from 'lucide-react';
 import Image from 'next/image';
 
+import { showToast } from '../../../utils/toast';
+
 
 type Message = {
   id: number;
@@ -222,13 +224,39 @@ export default function ChatSessionPage() {
   }, [messages]);
 
   // Add a useEffect to ensure chat service is initialized
+    // useEffect(() => {
+    //     if (typeof window !== 'undefined' && token) {
+    //     // Make sure Echo is initialized before trying to subscribe
+    //     chatService.initialize(token);
+    //     console.log('Echo reinitialized in chat session page');
+    //     }
+    // }, [token]);
     useEffect(() => {
-        if (typeof window !== 'undefined' && token) {
+      if (typeof window !== 'undefined' && token) {
         // Make sure Echo is initialized before trying to subscribe
         chatService.initialize(token);
         console.log('Echo reinitialized in chat session page');
+        
+        // Add connection status event listeners
+        const echo = getEcho();
+        if (echo) {
+          echo.connector.socket.on('disconnect', () => {
+            showToast.error('Connection lost. Reconnecting...');
+          });
+          
+          echo.connector.socket.on('reconnect', () => {
+            showToast.success('Reconnected!');
+          });
+          
+          // Clean up event listeners on unmount
+          return () => {
+            echo.connector.socket.off('disconnect');
+            echo.connector.socket.off('reconnect');
+          };
         }
+      }
     }, [token]);
+    
 
   // Load chat history and subscribe to real-time updates
   useEffect(() => {
@@ -397,15 +425,34 @@ export default function ChatSessionPage() {
     
     setNewMessage('');
     setSending(true);
+
+    // Show loading toast when uploading attachment
+    let uploadId;
+    if (attachment) {
+      uploadId = showToast.loading(`Uploading ${attachment.type.startsWith('image/') ? 'image' : 'video'}...`);
+    }
     
     try {
       await chatService.sendMessage(sessionUuid, messageText, attachment, messageType);
       // Real message will come through the Pusher channel, but we'll ignore it thanks to our tracking
+      // Dismiss loading toast if it exists
+      if (uploadId) {
+        showToast.dismiss(uploadId);
+        showToast.success('File uploaded successfully');
+      }
       setAttachment(null); // Clear attachment after sending
     } catch (err) {
       console.error('Error sending message:', err);
       // Get the error message from the error object
       const errorMessage = err.message || 'Failed to send message';
+
+      // Dismiss loading toast if it exists
+      if (uploadId) {
+        showToast.dismiss(uploadId);
+      }
+
+      // Show error toast
+      showToast.error(errorMessage);
 
       // Remove the optimistic message on error
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
@@ -426,8 +473,10 @@ export default function ChatSessionPage() {
       await chatService.updateChatSessionName(sessionUuid, editedTitle);
       setChatSession(prev => ({ ...prev, name: editedTitle }));
       setIsEditingTitle(false);
+      showToast.success('Chat session renamed');
     } catch (err) {
       console.error('Error updating session name:', err);
+      showToast.error('Failed to update session name');
       setError('Failed to update session name');
       setTimeout(() => setError(null), 3000);
     }
@@ -440,7 +489,9 @@ export default function ChatSessionPage() {
       // Only allow images and videos
       if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
         setAttachment(file);
+        showToast.info(`File attached: ${file.name}`);
       } else {
+        showToast.error('Only image and video files are allowed');
         setError('Only image and video files are allowed');
         setTimeout(() => setError(null), 3000);
       }
@@ -540,7 +591,7 @@ export default function ChatSessionPage() {
             </CardHeader>
             
             {error && (
-              <div className="mx-6 mt-2 p-2 bg-red-900/20 border border-red-500 rounded-md text-red-500 text-sm">
+              <div className="mx-6 mt-2 p-2 bg-red-900/20 border border-red-500 rounded-md text-red-500 text-sm whitespace-pre-line">
                 {error}
               </div>
             )}

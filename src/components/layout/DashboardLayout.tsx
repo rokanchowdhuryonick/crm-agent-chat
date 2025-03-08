@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import { Toaster } from 'react-hot-toast';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -123,6 +124,35 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       <footer className="bg-gray-800 border-t border-gray-700 p-4 text-center text-gray-400 text-sm">
         <p>© {new Date().getFullYear()} AI Agent. All rights reserved.</p>
       </footer>
+
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          // Default options for all toasts
+          className: '',
+          duration: 5000,
+          style: {
+            background: '#1A1A1A',
+            color: '#fff',
+          },
+          // Custom success color
+          success: {
+            iconTheme: {
+              primary: '#10B981',
+              secondary: '#1A1A1A',
+            },
+          },
+          // Custom error color
+          error: {
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: '#1A1A1A',
+            },
+          },
+        }}
+      />
+
+
     </div>
   );
 };

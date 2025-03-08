@@ -277,26 +277,26 @@ export default function ChatSessionPage() {
         const echo = getEcho(); // Import getEcho if needed
         console.log('Echo instance status:', echo ? 'available' : 'not available');
 
-        if (echo) {
-          // These should work without accessing socket directly
-          echo.connector.on('disconnected', () => {
-            showToast.error('Connection lost. Reconnecting...');
-          });
+        // if (echo) {
+        //   // These should work without accessing socket directly
+        //   echo.connector.on('disconnected', () => {
+        //     showToast.error('Connection lost. Reconnecting...');
+        //   });
           
-          echo.connector.on('connected', () => {
-            showToast.success('Reconnected!');
-          });
+        //   echo.connector.on('connected', () => {
+        //     showToast.success('Reconnected!');
+        //   });
           
-          // Clean up event listeners on unmount
-          return () => {
-            if (echo && echo.connector) {
-              echo.connector.off('disconnected');
-              echo.connector.off('connected');
-            }
-          };
-        } else {
-          console.warn('Echo is not available');
-        }
+        //   // Clean up event listeners on unmount
+        //   return () => {
+        //     if (echo && echo.connector) {
+        //       echo.connector.off('disconnected');
+        //       echo.connector.off('connected');
+        //     }
+        //   };
+        // } else {
+        //   console.warn('Echo is not available');
+        // }
         
         unsubscribe = chatService.subscribeToChat(sessionUuid, (newMessage: ChatMessage) => {
         console.log('Real-time message received:', newMessage);

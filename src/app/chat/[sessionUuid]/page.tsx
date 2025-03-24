@@ -122,16 +122,24 @@ const MessageContent = memo(({ message, getAttachmentUrl }) => {
       
     case 'video':
       return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 chat-message-content">
           {message.text && <p>{message.text}</p>}
-          <video 
-            // Same treatment for video
-            src={message.attachment?.startsWith('blob:') 
-              ? message.attachment 
-              : getAttachmentUrl(message.attachment)} 
-            controls 
-            className="rounded-md max-w-full max-h-[300px]"
-          />
+          <div className="relative w-full max-w-[300px]">
+            <video 
+              src={message.attachment?.startsWith('blob:') 
+                ? message.attachment 
+                : getAttachmentUrl(message.attachment)} 
+              controls
+              preload="metadata"
+              className="rounded-md object-contain max-h-[300px] w-auto"
+              style={{
+                maxWidth: '100%',
+                backgroundColor: 'rgba(0,0,0,0.2)'
+              }}
+              onLoadedData={() => document.querySelector('[data-message-id="' + message.id + '"]')?.scrollIntoView({ behavior: 'smooth' })}
+              poster={`${process.env.NEXT_PUBLIC_API_HOST_URL}/public/video-poster.png`}
+            />
+          </div>
         </div>
       );
       

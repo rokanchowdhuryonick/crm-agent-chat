@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useLayoutEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Resumable from 'resumablejs';
 import { DashboardLayout } from '../../../components/layout/DashboardLayout';
 import { RouteGuard } from '../../../components/auth/RouteGuard';
-import { chatService } from '../../../services/chatService';
+import { chatService, type ChatMessage as ApiChatMessage } from '../../../services/chatService';
 import { getEcho } from '../../../services/echo';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { AuthContextType } from '../../../types/auth';
@@ -13,42 +14,48 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, ArrowLeft, Loader2, Check, X, Edit2, Paperclip, File as FileIcon } from 'lucide-react';
-import Image from 'next/image';
+import NextImage from 'next/image';
+import { Progress } from "@/components/ui/progress"; // Import should work now
 
 import { showToast } from '../../../utils/toast';
 
+// Define Prop types
+interface ChatMessageProps {
+  message: Message;
+  getAttachmentUrl: (path: string | null) => string | null;
+  onRetryUpload: (fileIdentifier: string) => void;
+}
+
+interface MessageContentProps {
+  message: Message;
+  getAttachmentUrl: (path: string | null) => string | null;
+}
 
 type Message = {
-  id: number;
+  id: number | string; // Allow string for temporary IDs
   text: string;
   sender: 'bot' | 'user' | 'system';
   type?: string;
   timestamp?: string;
+  attachment?: string | null;
+  isOptimistic?: boolean;
+  uploadProgress?: number; // Add upload progress state
+  uploadError?: string | null; // Add upload error state
+  resumableFileIdentifier?: string; // To link message to Resumable file
 };
 
-interface ChatMessage {
-  id: number;
-  message: string;
-  sender_id: number | null;
-  chat_session_id: number;
-  attachment: string | null;
-  type: string;
-  created_at: string;
-  updated_at: string;
-  sender?: {
-    id: number;
-    name: string;
-  } | null;
-}
-
 // Create a memoized message component to prevent re-renders
-const ChatMessage = memo(({ message, getAttachmentUrl }) => {
+const ChatMessage = memo(({ message, getAttachmentUrl, onRetryUpload }: ChatMessageProps) => {
+  const isUploading = message.isOptimistic && message.uploadProgress !== undefined && message.uploadProgress < 100 && !message.uploadError;
+  const hasUploadError = message.isOptimistic && !!message.uploadError;
+
   return (
     <div
       data-message-id={message.id}
+      data-resumable-id={message.resumableFileIdentifier} // Add resumable identifier
       className={`flex ${
-        message.sender === 'user' 
-          ? 'justify-end' 
+        message.sender === 'user'
+          ? 'justify-end'
           : message.sender === 'system'
             ? 'justify-center'
             : 'justify-start'
@@ -56,28 +63,47 @@ const ChatMessage = memo(({ message, getAttachmentUrl }) => {
     >
       <div
         className={`rounded-xl px-4 py-3 ${
-          message.sender === 'system' 
-            ? 'max-w-[95%] w-4/5' 
+          message.sender === 'system'
+            ? 'max-w-[95%] w-4/5'
             : 'max-w-[80%]'
         } border shadow-md ${
           message.sender === 'user'
-            ? 'bg-secondary-black text-off-white border-gray-600' 
+            ? 'bg-secondary-black text-off-white border-gray-600'
             : message.sender === 'system'
               ? 'bg-gray-900 text-gray-300 border-gray-800 text-sm'
               : 'bg-gradient-to-br from-gray-900 to-black text-gray-300 border-gray-600'
         }`}
       >
         {message.sender === 'system' && <div className="text-xs text-gray-500 mb-1 font-medium">System</div>}
-        
+
         <MessageContent message={message} getAttachmentUrl={getAttachmentUrl} />
-        
-        {message.timestamp && (
+
+        {/* Progress Bar and Status */}
+        {isUploading && (
+          <div className="mt-2">
+            <Progress value={message.uploadProgress} className="w-full h-1 bg-gray-600" />
+            <span className="text-xs text-gray-400">Uploading... {message.uploadProgress}%</span>
+          </div>
+        )}
+        {hasUploadError && (
+           <div className="mt-2 text-xs text-red-400 flex items-center gap-2">
+             <span>Error: {message.uploadError}</span>
+             {/* Add check for resumableFileIdentifier */}
+             {onRetryUpload && message.resumableFileIdentifier && (
+               <Button variant="link" size="sm" className="p-0 h-auto text-blue-400" onClick={() => message.resumableFileIdentifier && onRetryUpload(message.resumableFileIdentifier)}>
+                 Retry
+               </Button>
+             )}
+           </div>
+        )}
+
+        {message.timestamp && !isUploading && !hasUploadError && ( // Hide timestamp during upload/error
           <div className="text-xs text-gray-500 mt-1 text-right">
-            {new Date(message.timestamp).toLocaleString('en-GB', { 
+            {new Date(message.timestamp).toLocaleString('en-GB', {
               day: 'numeric',
-              month: 'numeric', 
+              month: 'numeric',
               year: 'numeric',
-              hour: '2-digit', 
+              hour: '2-digit',
               minute: '2-digit'
             })}
           </div>
@@ -89,22 +115,27 @@ const ChatMessage = memo(({ message, getAttachmentUrl }) => {
 ChatMessage.displayName = 'ChatMessage';
 
 // Memoize the MessageContent component too
-const MessageContent = memo(({ message, getAttachmentUrl }) => {
+const MessageContent = memo(({ message, getAttachmentUrl }: MessageContentProps) => {
+  const isOptimisticPreview = message.isOptimistic && message.attachment?.startsWith('blob:');
+  const attachmentUrl = getAttachmentUrl(message.attachment); // Get URL once
+
   switch (message.type) {
     case 'image':
+      // Ensure src is a string or StaticImport, provide fallback if needed
+      const imageSrc = isOptimisticPreview ? message.attachment : attachmentUrl;
+      if (!imageSrc) return <p>{message.text || 'Image unavailable'}</p>; // Handle null/undefined src
+
       return (
         <div className="flex flex-col gap-2 chat-message-content">
           {message.text && <p>{message.text}</p>}
           <div className="relative w-full max-w-[300px]">
-            <Image 
-              // Check if attachment is a blob URL (from optimistic updates) or a server path
-              src={message.attachment?.startsWith('blob:') 
-                ? message.attachment  // Use blob URL directly
-                : getAttachmentUrl(message.attachment)} // Use server URL for paths
-              alt={message.text || "Image attachment"} 
+            <NextImage
+              src={imageSrc} // Use checked src
+              // ... rest of props
+              alt={message.text || "Image attachment"}
               width={300}
               height={300}
-              className="rounded-md object-contain"
+              className={`rounded-md object-contain ${isOptimisticPreview ? 'opacity-70' : ''}`}
               style={{
                 maxHeight: '300px',
                 width: 'auto',
@@ -112,44 +143,51 @@ const MessageContent = memo(({ message, getAttachmentUrl }) => {
                 objectFit: 'contain',
               }}
               loading="lazy"
-              onLoad={() => document.querySelector('[data-message-id="' + message.id + '"]')?.scrollIntoView({ behavior: 'smooth' })}
+              onLoad={() => document.querySelector(`[data-message-id="${message.id}"]`)?.scrollIntoView({ behavior: 'smooth' })}
               placeholder="blur"
               blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
             />
           </div>
         </div>
       );
-      
+
     case 'video':
+      // Ensure src is a string, provide fallback if needed
+      const videoSrc = isOptimisticPreview ? message.attachment : attachmentUrl;
+      if (!videoSrc) return <p>{message.text || 'Video unavailable'}</p>; // Handle null/undefined src
+
       return (
         <div className="flex flex-col gap-2 chat-message-content">
           {message.text && <p>{message.text}</p>}
           <div className="relative w-full max-w-[300px]">
-            <video 
-              src={message.attachment?.startsWith('blob:') 
-                ? message.attachment 
-                : getAttachmentUrl(message.attachment)} 
-              controls
+            <video
+              src={videoSrc} // Use checked src
+              // ... rest of props
+              controls={!isOptimisticPreview}
               preload="metadata"
-              className="rounded-md object-contain max-h-[300px] w-auto"
+              className={`rounded-md object-contain max-h-[300px] w-auto ${isOptimisticPreview ? 'opacity-70' : ''}`}
               style={{
                 maxWidth: '100%',
                 backgroundColor: 'rgba(0,0,0,0.2)'
               }}
-              onLoadedData={() => document.querySelector('[data-message-id="' + message.id + '"]')?.scrollIntoView({ behavior: 'smooth' })}
+              onLoadedData={() => document.querySelector(`[data-message-id="${message.id}"]`)?.scrollIntoView({ behavior: 'smooth' })}
               poster={`${process.env.NEXT_PUBLIC_API_HOST_URL}/public/video-poster.png`}
             />
+             {isOptimisticPreview && <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-sm">Preview</div>}
           </div>
         </div>
       );
-      
+
     case 'file':
+      if (!attachmentUrl) return <p>{message.text || 'File unavailable'}</p>; // Handle null/undefined href
+
       return (
         <div className="flex flex-col gap-2">
           <p>{message.text}</p>
-          <a 
-            href={getAttachmentUrl(message.attachment)} 
-            target="_blank" 
+          <a
+            href={attachmentUrl} // Use checked URL
+            // ... rest of props
+            target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 bg-gray-800 text-blue-400 hover:text-blue-300 p-2 rounded-md"
           >
@@ -158,7 +196,7 @@ const MessageContent = memo(({ message, getAttachmentUrl }) => {
           </a>
         </div>
       );
-    
+
     case 'stage':
       return <p>{message.text}</p>;
       
@@ -184,8 +222,9 @@ export default function ChatSessionPage() {
   const recentlySentRef = useRef<Set<string>>(new Set());
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
-  const [attachment, setAttachment] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const resumableRef = useRef<Resumable | null>(null); // Ref for Resumable instance
+  const [isUploading, setIsUploading] = useState(false); // Track upload state
 
   useEffect(() => {
     if (typeof window === 'undefined' || !sessionUuid) return;
@@ -244,10 +283,7 @@ export default function ChatSessionPage() {
         // Make sure Echo is initialized before trying to subscribe
         chatService.initialize(token);
         console.log('Echo reinitialized in chat session page');
-        
-        // Add connection status event listeners using Echo's built-in methods
-        const echo = getEcho();
-        
+        // Removed unused echo variable
       }
     }, [token]);
     
@@ -270,7 +306,7 @@ export default function ChatSessionPage() {
         const chatMessages = Array.isArray(history) ? history : [];
         
         // Transform history into the expected message format
-        const formattedHistory = chatMessages.map((msg: ChatMessage) => ({
+        const formattedHistory = chatMessages.map((msg: ApiChatMessage) => ({
           id: msg.id,
           text: msg.message,
           sender: msg.sender_id === user?.id ? 'user' : (msg.type === 'stage' ? 'system' : 'bot'),
@@ -306,53 +342,88 @@ export default function ChatSessionPage() {
         //   console.warn('Echo is not available');
         // }
         
-        unsubscribe = chatService.subscribeToChat(sessionUuid, (newMessage: ChatMessage) => {
+        unsubscribe = chatService.subscribeToChat(sessionUuid, (newMessage: ApiChatMessage) => {
         console.log('Real-time message received:', newMessage);
+
         setMessages(prev => {
-          // Don't add if this message ID already exists
-          if (prev.some(msg => msg.id === newMessage.id)) {
-            console.log('Duplicate message detected, ignoring:', newMessage.id);
+          // --- Check 0: Ignore Own Attachment Message if Already Processed by fileSuccess ---
+          // If the incoming message is from the current user, has an attachment,
+          // and a message with its final ID already exists in the state.
+          if (newMessage.sender_id === user?.id &&
+              newMessage.attachment &&
+              prev.some(msg => msg.id === newMessage.id)) {
+            console.log('Own attachment message already processed by fileSuccess, ignoring WebSocket message:', newMessage.id);
             return prev;
           }
 
-          // Check if this is our own recently sent message coming back from the server
-          // BUT only check text messages without attachments!
-          if (newMessage.sender_id === user?.id && 
-                !newMessage.attachment && 
-                newMessage.message && // Add this check for null message
-                recentlySentRef.current.has(newMessage.message)) {
-              console.log('Own text message detected coming back from server, ignoring');
-              return prev;
-            }
+          // --- Check 1: Exact Duplicate ID (Handles general duplicates) ---
+          if (prev.some(msg => msg.id === newMessage.id)) {
+            console.log('Duplicate message ID detected, ignoring:', newMessage.id);
+            return prev;
+          }
 
+          // --- Check 2: Replacing Optimistic Upload (Less likely needed with Check 0, but keep as fallback) ---
+          // This might still catch cases where WebSocket arrives before fileSuccess finishes processing.
+          const optimisticUploadIndex = prev.findIndex(msg =>
+              msg.isOptimistic &&
+              msg.sender === 'user' &&
+              msg.uploadProgress !== undefined && // It was an upload
+              // Match based on resumableFileIdentifier if possible (requires backend change)
+              // msg.resumableFileIdentifier === newMessage.resumableFileIdentifier ||
+              // Fallback to matching text/type (less reliable)
+              (msg.text === newMessage.message && msg.type === newMessage.type)
+          );
 
-          // For attachments, check more carefully - only filter if everything matches
-          if (newMessage.attachment && 
-            prev.some(msg => 
-              msg.text === newMessage.message && 
-              msg.sender === (newMessage.sender_id === user?.id ? 'user' : 
-                             (newMessage.type === 'stage' ? 'system' : 'bot')) &&
-              msg.isOptimistic === true // Only filter out optimistic updates
-            )) {
-            console.log('Replacing optimistic attachment message with server version');
-            // Replace the optimistic update with the real message
-            return prev.map(msg => 
-              (msg.text === newMessage.message && 
-              msg.sender === (newMessage.sender_id === user?.id ? 'user' : 
-                              (newMessage.type === 'stage' ? 'system' : 'bot')) &&
-              msg.isOptimistic === true)
-                ? {
+          if (newMessage.attachment && optimisticUploadIndex > -1) {
+              console.log('Real message matches an optimistic upload, replacing:', newMessage.id);
+              const updatedMessages = [...prev];
+              updatedMessages[optimisticUploadIndex] = {
+                  id: newMessage.id,
+                  text: newMessage.message,
+                  sender: 'user',
+                  type: newMessage.type,
+                  attachment: newMessage.attachment,
+                  timestamp: newMessage.created_at,
+                  isOptimistic: false,
+                  uploadProgress: 100, // Mark as complete
+              };
+              return updatedMessages;
+          }
+
+          // --- Check 3: Own Text Message Coming Back ---
+          if (newMessage.sender_id === user?.id &&
+              !newMessage.attachment &&
+              newMessage.message &&
+              recentlySentRef.current.has(newMessage.message)) {
+            console.log('Own text message detected coming back from server, attempting to replace optimistic');
+            const optimisticTextIndex = prev.findIndex(msg =>
+                msg.isOptimistic &&
+                msg.sender === 'user' &&
+                !msg.attachment &&
+                msg.text === newMessage.message
+            );
+            if (optimisticTextIndex > -1) {
+                console.log('Replacing optimistic text message with final ID:', newMessage.id);
+                const updatedMessages = [...prev];
+                updatedMessages[optimisticTextIndex] = {
                     id: newMessage.id,
                     text: newMessage.message,
-                    sender: newMessage.sender_id === user?.id ? 'user' : (newMessage.type === 'stage' ? 'system' : 'bot'),
-                    type: newMessage.type,
-                    attachment: newMessage.attachment,
-                    timestamp: newMessage.created_at
-                  }
-                : msg
-            );
+                    sender: 'user',
+                    type: 'text',
+                    timestamp: newMessage.created_at,
+                    isOptimistic: false,
+                };
+                // Remove from recentlySentRef as it's now confirmed
+                recentlySentRef.current.delete(newMessage.message);
+                return updatedMessages;
+            }
+            // If no optimistic match, still ignore (shouldn't happen often)
+            console.log('Own text message received, but no matching optimistic message found. Ignoring.');
+            return prev;
           }
-          
+
+          // --- Default: Add New Message (From Bot or System) ---
+          console.log('Adding new message from server:', newMessage.id);
           return [
             ...prev,
             {
@@ -385,98 +456,218 @@ export default function ChatSessionPage() {
     };
   }, [sessionUuid, user, token]);
 
+  // --- Initialize Resumable ---
+  useEffect(() => {
+    if (!sessionUuid || !token || typeof window === 'undefined') return;
+
+    // Define maxFileSize constant
+    const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024; // 1GB
+
+    const r = new Resumable({
+      target: `${process.env.NEXT_PUBLIC_API_BASE_URL}/chat/${sessionUuid}/upload-chunk`,
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      chunkSize: 5 * 1024 * 1024,
+      simultaneousUploads: 1,
+      testChunks: false,
+      throttleProgressCallbacks: 1,
+      maxFiles: 1,
+      // Use the constant here, @ts-expect-error still needed if type is boolean
+      // @ts-expect-error - Type definition for maxFileSize seems incorrect (expects boolean?)
+      maxFileSize: MAX_FILE_SIZE_BYTES,
+      fileType: ['mp4','mov','avi','mkv','webm','jpg','jpeg','png','gif'],
+      generateUniqueIdentifier: () => `chat-${sessionUuid}-${Date.now()}`
+    });
+
+    if (fileInputRef.current) {
+      // Pass false for the second argument (isDirectory)
+      r.assignBrowse(fileInputRef.current, false);
+    }
+
+    // --- Resumable Event Handlers ---
+    r.on('fileAdded', (file: Resumable.ResumableFile) => {
+      console.log('Resumable file added:', file);
+
+      // Remove the problematic check for `attachment` state
+      // if (!attachment) { ... }
+
+      // Basic validation (redundant but safe)
+      if (!file.file.type.startsWith('image/') && !file.file.type.startsWith('video/')) {
+        showToast.error('Invalid file type selected.');
+        r.removeFile(file); // Remove invalid file
+        return;
+      }
+      // @ts-expect-error - Type definition for maxFileSize seems incorrect
+      if (typeof r.opts.maxFileSize === 'number' && file.size > r.opts.maxFileSize) {
+        // @ts-expect-error - Type definition for maxFileSize seems incorrect
+        showToast.error(`File is too large (max ${r.opts.maxFileSize / 1024 / 1024} MB)`);
+        r.removeFile(file); // Remove invalid file
+        return;
+      }
+
+      setIsUploading(true);
+      setSending(true); // Use sending state to disable input/button
+
+      const messageText = newMessage.trim();
+      const messageType = file.file.type.startsWith('image/') ? 'image' : 'video';
+      // Use file.file (the actual File object) to create the blob URL
+      const localAttachmentUrl = URL.createObjectURL(file.file);
+      const tempId = `optimistic-${file.uniqueIdentifier}`;
+
+      // Optimistic UI update
+      setMessages(prev => [
+        ...prev,
+        {
+          id: tempId,
+          text: messageText,
+          sender: 'user',
+          type: messageType,
+          attachment: localAttachmentUrl, // Use blob URL for preview
+          timestamp: new Date().toISOString(),
+          isOptimistic: true,
+          uploadProgress: 0,
+          resumableFileIdentifier: file.uniqueIdentifier, // Link message to file
+        }
+      ]);
+
+      setNewMessage(''); // Clear text input
+      // setAttachment(null); // No longer needed
+      if (fileInputRef.current) fileInputRef.current.value = ''; // Clear file input value
+
+      // Add message text to Resumable query for the backend
+      interface ResumableQuery {
+        message?: string;
+        type?: string;
+        [key: string]: any;
+      }
+      r.opts.query = { ...r.opts.query, message: messageText, type: messageType } as ResumableQuery;
+
+      r.upload(); // Start the upload
+    });
+
+    r.on('fileProgress', (file: Resumable.ResumableFile) => {
+      // Pass false for relative progress
+      const progress = Math.floor(file.progress(false) * 100);
+      setMessages(prev => prev.map(msg =>
+        msg.resumableFileIdentifier === file.uniqueIdentifier
+          ? { ...msg, uploadProgress: progress }
+          : msg
+      ));
+    });
+
+    // ... (fileSuccess and fileError handlers remain largely the same)
+    r.on('fileSuccess', (file: Resumable.ResumableFile, serverMessage: string) => {
+      console.log('Resumable file success:', file, serverMessage);
+      try {
+        const response = JSON.parse(serverMessage);
+        const finalMessageData = response.message_data as ApiChatMessage; // Use type assertion
+
+        if (!finalMessageData) {
+          throw new Error("Invalid response from server after upload.");
+        }
+
+        setMessages(prev => prev.map(msg => {
+          if (msg.resumableFileIdentifier === file.uniqueIdentifier) {
+            return {
+              id: finalMessageData.id,
+              text: finalMessageData.message,
+              sender: finalMessageData.sender_id === user?.id ? 'user' : 'bot',
+              type: finalMessageData.type,
+              attachment: finalMessageData.attachment,
+              timestamp: finalMessageData.created_at,
+              isOptimistic: false,
+              uploadProgress: 100,
+              resumableFileIdentifier: undefined,
+            };
+          }
+          return msg;
+        }));
+
+      } catch (e) { // Use unknown type for catch clause variable
+        console.error("Error processing server response on fileSuccess:", e);
+        setMessages(prev => prev.map(msg =>
+          msg.resumableFileIdentifier === file.uniqueIdentifier
+            ? { ...msg, uploadError: 'Processing error after upload.', uploadProgress: undefined }
+            : msg
+        ));
+      } finally {
+        setIsUploading(false);
+        setSending(false);
+        r.removeFile(file);
+      }
+    });
+
+    r.on('fileError', (file: Resumable.ResumableFile, message: string) => {
+      console.error('Resumable file error:', file, message);
+      const errorMsg = message || 'Upload failed';
+      showToast.error(`Upload failed: ${file.fileName}`);
+
+      setMessages(prev => prev.map(msg =>
+        msg.resumableFileIdentifier === file.uniqueIdentifier
+          ? { ...msg, uploadError: errorMsg, uploadProgress: undefined }
+          : msg
+      ));
+
+      setIsUploading(false);
+      setSending(false);
+    });
+
+    resumableRef.current = r;
+
+    return () => {
+      console.log("Cleaning up Resumable instance");
+      if (resumableRef.current) {
+        resumableRef.current.cancel();
+      }
+      resumableRef.current = null;
+    };
+
+  }, [sessionUuid, token, newMessage, user]); // Removed `attachment` from dependencies
+
+  // --- Update handleSendMessage (Text Only) ---
   const handleSendMessage = useCallback( async () => {
-    if ((!newMessage.trim() && !attachment) || !sessionUuid) return;
+    // ... (logic remains the same)
+    if (!newMessage.trim() || !sessionUuid || isUploading) return;
 
-    let messageText = newMessage.trim();
-    let messageType = 'text';
+    const messageText = newMessage.trim();
+    const messageType = 'text';
 
-    // Determine message type based on attachment
-    if (attachment) {
-      // Determine the type based on file MIME type
-      if (attachment.type.startsWith('image/')) {
-        messageType = 'image';
-      } else if (attachment.type.startsWith('video/')) {
-        messageType = 'video';
-      } else {
-        messageType = 'file';
-      }
-      
-      // If only attachment is provided (no text), don't track text
-      if (messageText) {
-        recentlySentRef.current.add(messageText);
-        setTimeout(() => {
-          recentlySentRef.current.delete(messageText);
-        }, 5000);
-      }
-    } else {
-      // Only track text messages without attachments
-      recentlySentRef.current.add(messageText);
-      setTimeout(() => {
-        recentlySentRef.current.delete(messageText);
-      }, 5000);
-    }
-    
-    // Optimistic UI update
-    const tempId = Date.now();
-    // Create a local URL for the attachment preview
-    let localAttachmentUrl = null;
-    if (attachment) {
-      localAttachmentUrl = URL.createObjectURL(attachment);
-    }
+    recentlySentRef.current.add(messageText);
+    setTimeout(() => {
+      recentlySentRef.current.delete(messageText);
+    }, 5000);
 
+    const tempId = `optimistic-${Date.now()}`;
     setMessages(prev => [
       ...prev,
-      { 
-        id: tempId, 
-        text: messageText, 
-        type: messageType, 
-        attachment: localAttachmentUrl, 
-        sender: 'user', 
-        timestamp: new Date().toISOString(), 
-        isOptimistic: true 
+      {
+        id: tempId,
+        text: messageText,
+        sender: 'user',
+        type: messageType,
+        timestamp: new Date().toISOString(),
+        isOptimistic: true
       }
     ]);
-    
+
     setNewMessage('');
     setSending(true);
 
-    // Show loading toast when uploading attachment
-    let uploadId;
-    if (attachment) {
-      uploadId = showToast.loading(`Uploading ${attachment.type.startsWith('image/') ? 'image' : 'video'}...`);
-    }
-    
     try {
-      await chatService.sendMessage(sessionUuid, messageText, attachment, messageType);
-      // Real message will come through the Pusher channel, but we'll ignore it thanks to our tracking
-      // Dismiss loading toast if it exists
-      if (uploadId) {
-        showToast.dismiss(uploadId);
-        showToast.success('File uploaded successfully');
-      }
-      setAttachment(null); // Clear attachment after sending
-    } catch (err) {
-      console.error('Error sending message:', err);
-      // Get the error message from the error object
-      const errorMessage = err.message || 'Failed to send message';
-
-      // Dismiss loading toast if it exists
-      if (uploadId) {
-        showToast.dismiss(uploadId);
-      }
-
-      // Show error toast
+      await chatService.sendMessage(sessionUuid, messageText, null, messageType);
+    } catch (err) { // Use unknown type for catch clause variable
+      console.error('Error sending text message:', err);
+      // Type guard or assertion might be needed to access err.message
+      const errorMessage = (err instanceof Error ? err.message : String(err)) || 'Failed to send message';
       showToast.error(errorMessage);
-
-      // Remove the optimistic message on error
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
       setError(errorMessage);
       setTimeout(() => setError(null), 3000);
     } finally {
       setSending(false);
     }
-  },[newMessage, attachment, sessionUuid, recentlySentRef, user]);
+  },[newMessage, sessionUuid, isUploading]); // Removed unnecessary 'user' dependency
 
   const handleUpdateTitle = async () => {
     if (!editedTitle.trim() || editedTitle === chatSession?.name) {
@@ -497,27 +688,65 @@ export default function ChatSessionPage() {
     }
   };
 
+  // --- Update handleFileSelect ---
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // ... (logic remains the same)
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-    
-      // Only allow images and videos
-      if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-        setAttachment(file);
-        showToast.info(`File attached: ${file.name}`);
-      } else {
+
+      // Basic validation (Resumable also validates, but good for immediate feedback)
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
         showToast.error('Only image and video files are allowed');
-        setError('Only image and video files are allowed');
-        setTimeout(() => setError(null), 3000);
+        e.target.value = ''; // Clear input
+        return;
       }
+
+      const maxFileSize = resumableRef.current?.opts.maxFileSize;
+      // @ts-expect-error - Type definition for maxFileSize seems incorrect
+      if (typeof maxFileSize === 'number' && file.size > maxFileSize) {
+        // @ts-expect-error - Type definition for maxFileSize seems incorrect
+        showToast.error(`File is too large (max ${maxFileSize / 1024 / 1024} MB)`);
+        e.target.value = ''; // Clear input
+        return;
+      }
+      // Do NOT call setAttachment here
+      // setAttachment(file);
+    } else {
+      // setAttachment(null); // No longer needed
     }
   };
 
-  const getAttachmentUrl = useCallback((path) => {
+  const getAttachmentUrl = useCallback((path: string | null) => {
     if (!path) return null;
     return `${process.env.NEXT_PUBLIC_API_HOST_URL}/public-files/${path}`;
   },[]);
 
+  // --- Add Retry Handler ---
+  const handleRetryUpload = useCallback((fileIdentifier: string) => {
+    if (!resumableRef.current) return;
+
+    // Type assertion might be needed if types are incorrect
+    const fileToRetry = resumableRef.current.getFromUniqueIdentifier(fileIdentifier) as Resumable.ResumableFile | undefined;
+    if (fileToRetry) {
+      console.log("Retrying upload for:", fileIdentifier);
+      setMessages(prev => prev.map(msg =>
+        msg.resumableFileIdentifier === fileIdentifier
+          ? { ...msg, uploadError: null, uploadProgress: 0 }
+          : msg
+      ));
+      setIsUploading(true);
+      setSending(true);
+      fileToRetry.retry();
+    } else {
+      console.error("Could not find file to retry:", fileIdentifier);
+      showToast.error("Could not retry upload.");
+       setMessages(prev => prev.map(msg =>
+        msg.resumableFileIdentifier === fileIdentifier
+          ? { ...msg, uploadError: "Retry failed: File not found.", uploadProgress: undefined }
+          : msg
+      ));
+    }
+  }, []);
 
   useEffect(() => {
     // Preload next few images that aren't in the viewport yet
@@ -537,13 +766,17 @@ export default function ChatSessionPage() {
       
       // Create image objects to trigger browser preloading
       messagesToPreload.forEach(msg => {
-        const img = new Image();
-        img.src = getAttachmentUrl(msg.attachment);
+        // Use window.Image to avoid conflict with NextImage
+        const img = new window.Image();
+        const url = getAttachmentUrl(msg.attachment);
+        if (url) { // Check if URL is not null before assigning
+          img.src = url;
+        }
       });
     };
     
     preloadNextImages();
-  }, [messages]);
+  }, [messages, getAttachmentUrl]); // Added getAttachmentUrl dependency
 
   return (
     <RouteGuard>
@@ -628,47 +861,8 @@ export default function ChatSessionPage() {
                       key={message.id}
                       message={message}
                       getAttachmentUrl={getAttachmentUrl}
+                      onRetryUpload={handleRetryUpload} // Pass retry handler
                     />
-                      // <div key={message.id}
-                      //   data-message-id={message.id}
-                      //   className={`flex ${
-                      //     message.sender === 'user' 
-                      //       ? 'justify-end' 
-                      //       : message.sender === 'system'
-                      //         ? 'justify-center'  // Center system messages
-                      //         : 'justify-start'
-                      //   }`}
-                      // >
-                      //   <div
-                      //     className={`rounded-xl px-4 py-3 ${
-                      //       message.sender === 'system' 
-                      //         ? 'max-w-[95%] w-4/5' 
-                      //         : 'max-w-[80%]'
-                      //     } border shadow-md ${
-                      //       message.sender === 'user'
-                      //         ? 'bg-secondary-black text-off-white border-gray-600' 
-                      //         : message.sender === 'system'
-                      //           ? 'bg-gray-900 text-gray-300 border-gray-800 text-sm'
-                      //           : 'bg-gradient-to-br from-gray-900 to-black text-gray-300 border-gray-600'
-                      //     }`}
-                      //   >
-                      //     {message.sender === 'system' && <div className="text-xs text-gray-500 mb-1 font-medium">System</div>}
-                          
-                      //     <MessageContent message={message} />
-                          
-                      //     {message.timestamp && (
-                      //       <div className="text-xs text-gray-500 mt-1 text-right">
-                      //         {new Date(message.timestamp).toLocaleString('en-GB', { 
-                      //           day: 'numeric',
-                      //           month: 'numeric', 
-                      //           year: 'numeric',
-                      //           hour: '2-digit', 
-                      //           minute: '2-digit'
-                      //         })}
-                      //       </div>
-                      //     )}
-                      //   </div>
-                      // </div>
                     ))}
                     <div ref={messagesEndRef} />
                   </div>
@@ -679,37 +873,35 @@ export default function ChatSessionPage() {
             <CardFooter className="border-t border-gray-700 p-4">
               <div className="flex w-full space-x-2 items-center">
                 <Button variant="ghost" size="icon"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => !isUploading && fileInputRef.current?.click()}
                   className="h-10 w-10 rounded-full"
                   title="Attach image or video"
+                  disabled={isUploading}
                 >
                   <Paperclip className="h-5 w-5 text-gray-400" />
                 </Button>
                 <input type="file" ref={fileInputRef} className="hidden"
-                  onChange={handleFileSelect} accept="image/*,video/*"
+                  onChange={handleFileSelect}
+                  accept="image/*,video/*"
+                  disabled={isUploading}
                 />
                 {/* Show selected file name if present */}
-                {attachment && (
-                  <div className="bg-gray-700 text-xs text-gray-300 px-2 py-1 rounded flex items-center">
-                    {attachment.name.length > 20 ? `${attachment.name.substring(0, 20)}...` : attachment.name}
-                    <X size={14} className="ml-1 cursor-pointer" onClick={() => setAttachment(null)} />
-                  </div>
-                )}
 
                 <Input
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type your message..."
+                  placeholder={isUploading ? "Uploading file..." : "Type your message..."}
                   className="flex-1 bg-secondary-black text-off-white"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  disabled={loading || sending}
+                  disabled={loading || sending || isUploading}
                 />
                 <Button 
                   className="bg-secondary-black hover:bg-primary-black text-off-white"
                   onClick={handleSendMessage}
-                  disabled={loading || sending || (!newMessage.trim() && !attachment)}
+                  disabled={loading || sending || isUploading || !newMessage.trim()}
                 >
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {/* Correctly place conditional rendering inside the button */}
+                  {(sending || isUploading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>
             </CardFooter>

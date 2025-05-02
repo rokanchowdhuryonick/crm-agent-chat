@@ -23,9 +23,15 @@ const nextConfig: NextConfig = {
       // Add production domain here when deployed
       {
         protocol: 'https',
-        hostname: 'ai-agent-crm-backend.aisapiens.online',
+        hostname: '65fe-103-177-200-51.ngrok-free.app',
         port: '',
         pathname: '/public-files/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'chat-cdn.aisapiens.online',
+        port: '',
+        pathname: '/chat_attachments/**',
       },
     ],
   },

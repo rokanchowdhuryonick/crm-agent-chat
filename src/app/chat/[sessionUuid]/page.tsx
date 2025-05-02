@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, ArrowLeft, Loader2, Check, X, Edit2, Paperclip, File as FileIcon } from 'lucide-react';
+import ReactPlayer from 'react-player';
 import NextImage from 'next/image';
 import { Progress } from "@/components/ui/progress"; // Import should work now
 
@@ -38,6 +39,8 @@ type Message = {
   type?: string;
   timestamp?: string;
   attachment?: string | null;
+  attachment_url?: string | null;
+  thumbnail_url?: string | null;
   isOptimistic?: boolean;
   uploadProgress?: number; // Add upload progress state
   uploadError?: string | null; // Add upload error state
@@ -115,77 +118,79 @@ const ChatMessage = memo(({ message, getAttachmentUrl, onRetryUpload }: ChatMess
 ChatMessage.displayName = 'ChatMessage';
 
 // Memoize the MessageContent component too
-const MessageContent = memo(({ message, getAttachmentUrl }: MessageContentProps) => {
-  const isOptimisticPreview = message.isOptimistic && message.attachment?.startsWith('blob:');
-  const attachmentUrl = getAttachmentUrl(message.attachment); // Get URL once
-
+const MessageContent = memo(({ message }: MessageContentProps) => {
   switch (message.type) {
     case 'image':
-      // Ensure src is a string or StaticImport, provide fallback if needed
-      const imageSrc = isOptimisticPreview ? message.attachment : attachmentUrl;
-      if (!imageSrc) return <p>{message.text || 'Image unavailable'}</p>; // Handle null/undefined src
-
       return (
         <div className="flex flex-col gap-2 chat-message-content">
-          {message.text && <p>{message.text}</p>}
-          <div className="relative w-full max-w-[300px]">
-            <NextImage
-              src={imageSrc} // Use checked src
-              // ... rest of props
-              alt={message.text || "Image attachment"}
-              width={300}
-              height={300}
-              className={`rounded-md object-contain ${isOptimisticPreview ? 'opacity-70' : ''}`}
-              style={{
-                maxHeight: '300px',
-                width: 'auto',
-                height: 'auto',
-                objectFit: 'contain',
-              }}
-              loading="lazy"
-              onLoad={() => document.querySelector(`[data-message-id="${message.id}"]`)?.scrollIntoView({ behavior: 'smooth' })}
-              placeholder="blur"
-              blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-            />
-          </div>
-        </div>
+      {message.text && <p>{message.text}</p>}
+      <div className="relative w-full max-w-[300px]">
+        <a
+          href={message.attachment_url || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="View full image"
+        >
+          <NextImage
+            src={message.thumbnail_url || message.attachment_url || '/placeholder.jpg'}
+            alt={message.text || "Image attachment"}
+            width={300}
+            height={300}
+            className="rounded-md object-contain cursor-pointer"
+            style={{ maxHeight: '300px', width: 'auto', height: 'auto', objectFit: 'contain' }}
+            loading="lazy"
+            placeholder="blur"
+            blurDataURL={message.thumbnail_url || '/placeholder.jpg'}
+          />
+        </a>
+        {/* Optional: Download button */}
+        {message.attachment_url && (
+          <a
+            target="_blank"
+            href={message.attachment_url}
+            download
+            className="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+            title="Download image"
+          >
+            <FileIcon className="h-4 w-4" />
+          </a>
+        )}
+      </div>
+    </div>
       );
-
     case 'video':
-      // Ensure src is a string, provide fallback if needed
-      const videoSrc = isOptimisticPreview ? message.attachment : attachmentUrl;
-      if (!videoSrc) return <p>{message.text || 'Video unavailable'}</p>; // Handle null/undefined src
-
       return (
         <div className="flex flex-col gap-2 chat-message-content">
           {message.text && <p>{message.text}</p>}
           <div className="relative w-full max-w-[300px]">
-            <video
-              src={videoSrc} // Use checked src
-              // ... rest of props
-              controls={!isOptimisticPreview}
-              preload="metadata"
-              className={`rounded-md object-contain max-h-[300px] w-auto ${isOptimisticPreview ? 'opacity-70' : ''}`}
-              style={{
-                maxWidth: '100%',
-                backgroundColor: 'rgba(0,0,0,0.2)'
+            <ReactPlayer
+              url={message.attachment_url}
+              controls
+              width="100%"
+              height="200px"
+              light={message.thumbnail_url}
+              playing={false}
+              config={{
+                file: {
+                  attributes: {
+                    poster: message.thumbnail_url,
+                  },
+                  forceHLS: true,
+                }
               }}
-              onLoadedData={() => document.querySelector(`[data-message-id="${message.id}"]`)?.scrollIntoView({ behavior: 'smooth' })}
-              poster={`${process.env.NEXT_PUBLIC_API_HOST_URL}/public/video-poster.png`}
             />
-             {isOptimisticPreview && <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-sm">Preview</div>}
           </div>
         </div>
       );
 
     case 'file':
-      if (!attachmentUrl) return <p>{message.text || 'File unavailable'}</p>; // Handle null/undefined href
+      if (!message.attachment_url) return <p>{message.text || 'File unavailable'}</p>; // Handle null/undefined href
 
       return (
         <div className="flex flex-col gap-2">
           <p>{message.text}</p>
           <a
-            href={attachmentUrl} // Use checked URL
+            href={message.attachment_url} // Use checked URL
             // ... rest of props
             target="_blank"
             rel="noopener noreferrer"
@@ -308,10 +313,12 @@ export default function ChatSessionPage() {
         // Transform history into the expected message format
         const formattedHistory = chatMessages.map((msg: ApiChatMessage) => ({
           id: msg.id,
-          text: msg.message,
+          text: msg.message ?? '', // fallback if null
           sender: msg.sender_id === user?.id ? 'user' : (msg.type === 'stage' ? 'system' : 'bot'),
           type: msg.type,
           attachment: msg.attachment,
+          attachment_url: msg.attachment_url,
+          thumbnail_url: msg.thumbnail_url,
           timestamp: msg.created_at
         })) as Message[];
         

@@ -11,6 +11,8 @@ export interface ChatMessage {
   sender_id: number | null; // Allow null for system messages
   chat_session_id: number;
   attachment: string | null;
+  attachment_url?: string | null;
+  thumbnail_url?: string | null;
   type: string;
   created_at: string;
   updated_at: string;

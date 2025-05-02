@@ -174,3 +174,17 @@ export const chatService = {
   }
 
 };
+
+// In fileSuccess handler (in your chat page), when replacing the optimistic message:
+// setMessages(prev => prev.map(msg => {
+//   if (msg.resumableFileIdentifier === file.uniqueIdentifier) {
+//     return {
+//       ...existing code...
+//       attachment: finalMessageData.attachment || msg.attachment, // <-- keep blob if backend doesn't provide
+//       attachment_url: finalMessageData.attachment_url,
+//       thumbnail_url: finalMessageData.thumbnail_url,
+//       ...existing code...
+//     };
+//   }
+//   return msg;
+// }));

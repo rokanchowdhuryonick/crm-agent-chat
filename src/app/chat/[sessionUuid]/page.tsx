@@ -123,40 +123,47 @@ const MessageContent = memo(({ message }: MessageContentProps) => {
     case 'image':
       return (
         <div className="flex flex-col gap-2 chat-message-content">
-      {message.text && <p>{message.text}</p>}
-      <div className="relative w-full max-w-[300px]">
-        <a
-          href={message.attachment_url || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="View full image"
-        >
-          <NextImage
-            src={message.thumbnail_url || message.attachment_url || '/placeholder.jpg'}
-            alt={message.text || "Image attachment"}
-            width={300}
-            height={300}
-            className="rounded-md object-contain cursor-pointer"
-            style={{ maxHeight: '300px', width: 'auto', height: 'auto', objectFit: 'contain' }}
-            loading="lazy"
-            placeholder="blur"
-            blurDataURL={message.thumbnail_url || '/placeholder.jpg'}
-          />
-        </a>
-        {/* Optional: Download button */}
-        {message.attachment_url && (
-          <a
-            target="_blank"
-            href={message.attachment_url}
-            download
-            className="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
-            title="Download image"
-          >
-            <FileIcon className="h-4 w-4" />
-          </a>
-        )}
-      </div>
-    </div>
+          {message.text && <p>{message.text}</p>}
+          <div className="relative w-full max-w-[300px]">
+            <a
+              href={message.attachment_url || message.attachment || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View full image"
+            >
+              {(message.thumbnail_url && message.thumbnail_url.startsWith('http')) ||
+              (message.attachment_url && message.attachment_url.startsWith('http')) ||
+              (message.attachment && message.attachment.startsWith('blob:')) ? (
+                <NextImage
+                  src={
+                    message.thumbnail_url && message.thumbnail_url.startsWith('http')
+                      ? message.thumbnail_url
+                      : message.attachment_url && message.attachment_url.startsWith('http')
+                        ? message.attachment_url
+                        : message.attachment // blob url
+                  }
+                  alt={message.text || "Image attachment"}
+                  width={300}
+                  height={300}
+                  className="rounded-md object-contain cursor-pointer"
+                  style={{ maxHeight: '300px', width: 'auto', height: 'auto', objectFit: 'contain' }}
+                  loading="lazy"
+                />
+              ) : null}
+            </a>
+            {message.attachment_url && (
+              <a
+                target="_blank"
+                href={message.attachment_url}
+                download
+                className="absolute bottom-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+                title="Download image"
+              >
+                <FileIcon className="h-4 w-4" />
+              </a>
+            )}
+          </div>
+        </div>
       );
     case 'video':
       return (
@@ -164,7 +171,7 @@ const MessageContent = memo(({ message }: MessageContentProps) => {
           {message.text && <p>{message.text}</p>}
           <div className="relative w-full max-w-[300px]">
             <ReactPlayer
-              url={message.attachment_url}
+              url={message.attachment_url || message.attachment} // fallback to blob URL
               controls
               width="100%"
               height="200px"
@@ -353,92 +360,45 @@ export default function ChatSessionPage() {
         console.log('Real-time message received:', newMessage);
 
         setMessages(prev => {
-          // --- Check 0: Ignore Own Attachment Message if Already Processed by fileSuccess ---
-          // If the incoming message is from the current user, has an attachment,
-          // and a message with its final ID already exists in the state.
-          if (newMessage.sender_id === user?.id &&
-              newMessage.attachment &&
-              prev.some(msg => msg.id === newMessage.id)) {
-            console.log('Own attachment message already processed by fileSuccess, ignoring WebSocket message:', newMessage.id);
-            return prev;
-          }
+          // Find if this message already exists (optimistic or not)
+          const existingIndex = prev.findIndex(msg => msg.id === newMessage.id);
 
-          // --- Check 1: Exact Duplicate ID (Handles general duplicates) ---
-          if (prev.some(msg => msg.id === newMessage.id)) {
-            console.log('Duplicate message ID detected, ignoring:', newMessage.id);
-            return prev;
-          }
-
-          // --- Check 2: Replacing Optimistic Upload (Less likely needed with Check 0, but keep as fallback) ---
-          // This might still catch cases where WebSocket arrives before fileSuccess finishes processing.
-          const optimisticUploadIndex = prev.findIndex(msg =>
-              msg.isOptimistic &&
-              msg.sender === 'user' &&
-              msg.uploadProgress !== undefined && // It was an upload
-              // Match based on resumableFileIdentifier if possible (requires backend change)
-              // msg.resumableFileIdentifier === newMessage.resumableFileIdentifier ||
-              // Fallback to matching text/type (less reliable)
-              (msg.text === newMessage.message && msg.type === newMessage.type)
-          );
-
-          if (newMessage.attachment && optimisticUploadIndex > -1) {
-              console.log('Real message matches an optimistic upload, replacing:', newMessage.id);
+          if (existingIndex > -1) {
+            // If the new message has a better attachment_url/thumbnail_url, update the message
+            const existing = prev[existingIndex];
+            if (
+              (newMessage.attachment_url && newMessage.attachment_url !== existing.attachment_url) ||
+              (newMessage.thumbnail_url && newMessage.thumbnail_url !== existing.thumbnail_url)
+            ) {
               const updatedMessages = [...prev];
-              updatedMessages[optimisticUploadIndex] = {
-                  id: newMessage.id,
-                  text: newMessage.message,
-                  sender: 'user',
-                  type: newMessage.type,
-                  attachment: newMessage.attachment,
-                  timestamp: newMessage.created_at,
-                  isOptimistic: false,
-                  uploadProgress: 100, // Mark as complete
+              updatedMessages[existingIndex] = {
+                ...existing,
+                ...newMessage,
+                // --- force sender to 'user' if sender_id matches current user ---
+                sender: newMessage.sender_id === user?.id ? 'user' : (newMessage.type === 'stage' ? 'system' : 'bot'),
+                isOptimistic: false,
+                uploadProgress: undefined,
+                uploadError: undefined,
+                resumableFileIdentifier: undefined,
               };
               return updatedMessages;
-          }
-
-          // --- Check 3: Own Text Message Coming Back ---
-          if (newMessage.sender_id === user?.id &&
-              !newMessage.attachment &&
-              newMessage.message &&
-              recentlySentRef.current.has(newMessage.message)) {
-            console.log('Own text message detected coming back from server, attempting to replace optimistic');
-            const optimisticTextIndex = prev.findIndex(msg =>
-                msg.isOptimistic &&
-                msg.sender === 'user' &&
-                !msg.attachment &&
-                msg.text === newMessage.message
-            );
-            if (optimisticTextIndex > -1) {
-                console.log('Replacing optimistic text message with final ID:', newMessage.id);
-                const updatedMessages = [...prev];
-                updatedMessages[optimisticTextIndex] = {
-                    id: newMessage.id,
-                    text: newMessage.message,
-                    sender: 'user',
-                    type: 'text',
-                    timestamp: newMessage.created_at,
-                    isOptimistic: false,
-                };
-                // Remove from recentlySentRef as it's now confirmed
-                recentlySentRef.current.delete(newMessage.message);
-                return updatedMessages;
             }
-            // If no optimistic match, still ignore (shouldn't happen often)
-            console.log('Own text message received, but no matching optimistic message found. Ignoring.');
+            // Otherwise, skip (no new info)
             return prev;
           }
 
-          // --- Default: Add New Message (From Bot or System) ---
-          console.log('Adding new message from server:', newMessage.id);
+          // If not found, add as new message
           return [
             ...prev,
             {
               id: newMessage.id,
               text: newMessage.message,
+              // --- force sender to 'user' if sender_id matches current user ---
               sender: newMessage.sender_id === user?.id ? 'user' : (newMessage.type === 'stage' ? 'system' : 'bot'),
               type: newMessage.type,
               attachment: newMessage.attachment,
+              attachment_url: newMessage.attachment_url,
+              thumbnail_url: newMessage.thumbnail_url,
               timestamp: newMessage.created_at
             }
           ];
@@ -581,7 +541,10 @@ export default function ChatSessionPage() {
               text: finalMessageData.message,
               sender: finalMessageData.sender_id === user?.id ? 'user' : 'bot',
               type: finalMessageData.type,
-              attachment: finalMessageData.attachment,
+              // --- keep blob as fallback if backend doesn't provide a valid url ---
+              attachment: finalMessageData.attachment || msg.attachment,
+              attachment_url: finalMessageData.attachment_url,
+              thumbnail_url: finalMessageData.thumbnail_url,
               timestamp: finalMessageData.created_at,
               isOptimistic: false,
               uploadProgress: 100,

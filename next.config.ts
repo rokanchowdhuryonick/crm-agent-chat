@@ -27,6 +27,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/public-files/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'chat-cdn.aisapiens.online',
+        port: '',
+        pathname: '/chat_attachments/**',
+      },
     ],
   },
 };

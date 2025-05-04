@@ -237,6 +237,8 @@ export default function ChatSessionPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resumableRef = useRef<Resumable | null>(null); // Ref for Resumable instance
   const [isUploading, setIsUploading] = useState(false); // Track upload state
+  const [isDraggingOver, setIsDraggingOver] = useState(false); // State for drag feedback
+  const dropZoneRef = useRef<HTMLDivElement>(null); // Ref for the drop zone element
 
   useEffect(() => {
     if (typeof window === 'undefined' || !sessionUuid) return;
@@ -426,17 +428,42 @@ export default function ChatSessionPage() {
       generateUniqueIdentifier: () => `chat-${sessionUuid}-${Date.now()}`
     });
 
+    // Assign browse button
     if (fileInputRef.current) {
-      // Pass false for the second argument (isDirectory)
       r.assignBrowse(fileInputRef.current, false);
     }
 
-    // --- Resumable Event Handlers ---
-    r.on('fileAdded', (file: Resumable.ResumableFile) => {
-      console.log('Resumable file added:', file);
+    // --- Assign Drop Target ---
+    if (dropZoneRef.current) {
+      r.assignDrop(dropZoneRef.current);
+      console.log("Resumable drop target assigned to:", dropZoneRef.current);
+    } else {
+      console.warn("Drop zone ref not available for Resumable assignment.");
+    }
 
-      // Remove the problematic check for `attachment` state
-      // if (!attachment) { ... }
+
+    // --- Resumable Event Handlers ---
+
+    // Add drag/drop event listeners for visual feedback
+    r.on('dragenter', () => {
+      console.log('Resumable dragenter');
+      setIsDraggingOver(true);
+    });
+    r.on('dragleave', () => {
+      console.log('Resumable dragleave');
+      setIsDraggingOver(false);
+    });
+    r.on('drop', () => {
+      console.log('Resumable drop');
+      setIsDraggingOver(false); // Ensure state is reset on drop
+    });
+
+
+    r.on('fileAdded', (file: Resumable.ResumableFile) => {
+      console.log('Resumable file added (via drag/drop or browse):', file);
+      // ... existing fileAdded logic ...
+      // Reset drag state just in case it wasn't reset by dragleave/drop
+      setIsDraggingOver(false);
 
       // Basic validation (redundant but safe)
       if (!file.file.type.startsWith('image/') && !file.file.type.startsWith('video/')) {
@@ -567,9 +594,15 @@ export default function ChatSessionPage() {
     return () => {
       console.log("Cleaning up Resumable instance");
       if (resumableRef.current) {
+        // --- Unassign Drop Target ---
+        if (dropZoneRef.current) {
+          resumableRef.current.unAssignDrop(dropZoneRef.current);
+          console.log("Resumable drop target unassigned.");
+        }
         resumableRef.current.cancel();
       }
       resumableRef.current = null;
+      setIsDraggingOver(false); // Reset state on cleanup
     };
 
   }, [sessionUuid, token, newMessage, user]); // Removed `attachment` from dependencies
@@ -742,7 +775,12 @@ export default function ChatSessionPage() {
             </Button>
           </div>
           
-          <Card className="w-full h-[calc(100vh-12rem)] flex flex-col bg-gray-800 border-gray-700">
+          <Card
+            ref={dropZoneRef} // Assign the ref here
+            className={`w-full h-[calc(100vh-12rem)] flex flex-col bg-gray-800 border-gray-700 transition-all duration-200 ease-in-out ${
+              isDraggingOver ? 'border-blue-500 border-dashed border-2 ring-4 ring-blue-500/30' : 'border-gray-700'
+            }`}
+          >
             <CardHeader className="flex flex-row justify-between items-center border-b border-gray-700">
             <CardTitle className="flex items-center gap-2">
               {isEditingTitle ? (
@@ -794,6 +832,12 @@ export default function ChatSessionPage() {
             )}
             
             <CardContent className="flex-1 overflow-hidden py-4 relative">
+              {/* --- Optional: Add overlay during drag --- */}
+              {isDraggingOver && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 pointer-events-none">
+                  <p className="text-white text-lg font-semibold">Drop file here</p>
+                </div>
+              )}
               <ScrollArea className="h-full w-full absolute inset-0 pr-4">
                 {loading && messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400">

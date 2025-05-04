@@ -63,7 +63,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-1">
-            <NavItem href="/dashboard" icon={<LayoutDashboard size={20} />} text="Dashboard" />
+            {/* <NavItem href="/dashboard" icon={<LayoutDashboard size={20} />} text="Dashboard" /> */}
             <NavItem href="/chat" icon={<MessageSquare size={20} />} text="Chat" />
             <NavItem href="/profile" icon={<User size={20} />} text="Profile" />
             <Button 
@@ -81,12 +81,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         {isMobileMenuOpen && (
           <div className="md:hidden bg-gray-800 border-t border-gray-700 p-4">
             <nav className="flex flex-col space-y-2">
-              <MobileNavItem 
+              {/* <MobileNavItem 
                 href="/dashboard" 
                 icon={<LayoutDashboard size={20} />} 
                 text="Dashboard" 
                 onClick={() => setIsMobileMenuOpen(false)}
-              />
+              /> */}
               <MobileNavItem 
                 href="/chat" 
                 icon={<MessageSquare size={20} />} 

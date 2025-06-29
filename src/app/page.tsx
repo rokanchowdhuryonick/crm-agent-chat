@@ -4,29 +4,25 @@ import { useAuth } from '../contexts/AuthContext';
 import { AuthScreen } from '../components/auth/AuthScreen';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { RouteGuard } from '@/components/auth/RouteGuard'; // Import RouteGuard
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
-  
+
   useEffect(() => {
-    // Redirect to dashboard if authenticated
-    if (isAuthenticated && !loading) {
-      router.push('/dashboard');
+    // Only redirect to dashboard if authenticated and not in a loading state
+    if (!loading && isAuthenticated) {
+      router.push('/chat');
     }
   }, [isAuthenticated, loading, router]);
-  
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-  
-  if (!isAuthenticated) {
-    return <AuthScreen />;
-  }
-  
-  return null; // Will redirect in useEffect
+
+  // For the login/register page, we ALWAYS show AuthScreen
+  // RouteGuard is still used but only affects protected routes, not '/'
+  return (
+    <RouteGuard>
+      {/* Always render AuthScreen on the root path */}
+      <AuthScreen />
+    </RouteGuard>
+  );
 }

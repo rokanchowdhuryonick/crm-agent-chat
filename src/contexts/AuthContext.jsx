@@ -12,7 +12,8 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // For initial auth check only
+  const [authOperationLoading, setAuthOperationLoading] = useState(false); // For login/register operations
 
   // Client-side only code
   useEffect(() => {
@@ -24,11 +25,9 @@ export function AuthProvider({ children }) {
         try {
           setToken(savedToken);
           setUser(JSON.parse(savedUser));
-          // if (typeof window !== 'undefined') {
-            // Only initialize chat service on client side
-            chatService.initialize(savedToken);
-            console.log('Echo initialized with saved token');
-          // }
+          // Only initialize chat service on client side
+          chatService.initialize(savedToken);
+          console.log('Echo initialized with saved token');
         } catch (e) {
           console.error('Failed to parse stored user data:', e);
         }
@@ -43,7 +42,7 @@ export function AuthProvider({ children }) {
     console.log('REAL login function called with:', email);
     
     try {
-      setLoading(true);
+      setAuthOperationLoading(true); // Use separate loading state for operations
       const data = await api.login(email, password);
       
       console.log('Login API response:', data);
@@ -64,12 +63,14 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error('Login failed:', error);
+      // Use error.message if response details are not available
+      const errorMessage = error.response?.data?.message || error.message || 'Login failed. Please try again.';
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Login failed. Please try again.' 
+        error: errorMessage 
       };
     } finally {
-      setLoading(false);
+      setAuthOperationLoading(false); // Reset operation loading state
     }
   };
 
@@ -78,7 +79,7 @@ export function AuthProvider({ children }) {
     console.log('REAL register function called');
     
     try {
-      setLoading(true);
+      setAuthOperationLoading(true); // Use separate loading state for operations
       const data = await api.register(userData);
       
       if (data?.token) {
@@ -94,12 +95,14 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error('Registration failed:', error);
+      // Use error.message if response details are not available
+      const errorMessage = error.response?.data?.message || error.message || 'Registration failed. Please try again.';
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Registration failed. Please try again.' 
+        error: errorMessage  
       };
     } finally {
-      setLoading(false);
+      setAuthOperationLoading(false); // Reset operation loading state
     }
   };
 
@@ -133,7 +136,8 @@ export function AuthProvider({ children }) {
   const contextValue = {
     user,
     token,
-    loading,
+    loading,                  // Only for initial auth check
+    authOperationLoading,     // Expose the new loading state
     login,
     register,
     logout,

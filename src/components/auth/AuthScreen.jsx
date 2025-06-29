@@ -127,18 +127,18 @@ export const AuthScreen = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-primary-black text-off-white">
-      <Card className="w-full max-w-md bg-[#1a1a1a] border-none rounded-xl shadow-2xl overflow-hidden">
-        <CardHeader className="space-y-2 pb-4">
-          <CardTitle className="text-2xl font-bold text-center text-white">
-            {authMode === 'login' ? '' : 'Create Account'}
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background text-foreground">
+      <Card className="w-full max-w-md bg-card border-border rounded-xl shadow-2xl overflow-hidden">
+        <CardHeader className="space-y-2 pb-6 pt-8 text-center"> {/* Increased top/bottom padding, centered text */}
+          <CardTitle className="text-3xl font-bold text-primary">
+            {authMode === 'login' ? '' : 'Create Your Account'}
           </CardTitle>
-          <CardDescription className="text-center text-gray-400">
-            {authMode === 'login' ? 'Sign in to continue' : 'Fill in the details to register'}
+          <CardDescription className="text-muted-foreground px-4">
+            {authMode === 'login' ? 'Sign in to access your AI Agent dashboard.' : 'Join us and explore the future of AI.'}
           </CardDescription>
-          {error && <div className="text-red-500 text-center pt-2 text-sm">{error}</div>}
+          {error && <div className="text-destructive pt-3 text-sm px-4">{error}</div>}
         </CardHeader>
-        <CardContent className="relative overflow-hidden min-h-[350px] pt-4"> {/* Adjusted min-height */}
+        <CardContent className="relative overflow-hidden min-h-[420px] p-0"> {/* Adjusted min-height, no padding here */}
           <AnimatePresence mode="wait" custom={authMode === 'login' ? 'right' : 'left'}>
             {authMode === 'login' ? (
               <motion.div
@@ -148,17 +148,17 @@ export const AuthScreen = () => {
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="absolute w-full px-6" // Added padding to match CardContent default
+                className="absolute inset-0 flex flex-col justify-center items-center p-6 sm:p-8" // Use flex to center, added responsive padding
               >
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-3">
+                <form onSubmit={handleLogin} className="w-full space-y-6">
+                  <div className="space-y-4">
                     <Input
                       type="email"
                       name="email"
                       value={loginData.email}
                       onChange={handleLoginChange}
-                      placeholder="Email"
-                      className="bg-[#1e1e1e] border-gray-700 text-white placeholder:text-gray-500 rounded-lg focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+                      placeholder="your@email.com"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground rounded-lg focus:border-primary focus:ring-1 focus:ring-primary h-12 text-base px-4" // Increased height and padding
                       required
                     />
                     <Input
@@ -166,26 +166,26 @@ export const AuthScreen = () => {
                       name="password"
                       value={loginData.password}
                       onChange={handleLoginChange}
-                      placeholder="Password"
-                      className="bg-[#1e1e1e] border-gray-700 text-white placeholder:text-gray-500 rounded-lg focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+                      placeholder="••••••••"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground rounded-lg focus:border-primary focus:ring-1 focus:ring-primary h-12 text-base px-4" // Increased height and padding
                       required
                     />
                   </div>
                   <Button
                     type="submit"
-                    className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white transition-colors duration-200 rounded-lg py-2.5"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground transition-colors duration-200 rounded-lg py-3 text-base sm:text-lg font-semibold h-12 flex items-center justify-center" // Increased height, ensured flex centering for icon
                     disabled={authOperationLoading}
                   >
-                    <LogIn className="mr-2 h-4 w-4" /> {authOperationLoading ? 'Signing in...' : 'Sign In'}
+                    <LogIn className="mr-2 h-5 w-5" /> {authOperationLoading ? 'Signing In...' : 'Sign In'}
                   </Button>
-                  <div className="text-center text-sm text-gray-400">
+                  <div className="text-center text-sm text-muted-foreground pt-2">
                     Don't have an account?{' '}
                     <button
                       type="button"
                       onClick={() => switchMode('register')}
-                      className="font-medium text-[#2563eb] hover:underline focus:outline-none"
+                      className="font-medium text-primary hover:underline focus:outline-none"
                     >
-                      Register
+                      Register Now
                     </button>
                   </div>
                 </form>
@@ -198,17 +198,17 @@ export const AuthScreen = () => {
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="absolute w-full px-6" // Added padding to match CardContent default
+                className="absolute inset-0 flex flex-col justify-center items-center p-6 sm:p-8" // Use flex to center, added responsive padding
               >
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-3">
+                <form onSubmit={handleRegister} className="w-full space-y-6">
+                  <div className="space-y-4">
                     <Input
                       type="text"
                       name="name"
                       value={registerData.name}
                       onChange={handleRegisterChange}
                       placeholder="Full Name"
-                      className="bg-[#1e1e1e] border-gray-700 text-white placeholder:text-gray-500 rounded-lg focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground rounded-lg focus:border-primary focus:ring-1 focus:ring-primary h-12 text-base px-4" // Increased height and padding
                       required
                     />
                     <Input
@@ -216,8 +216,8 @@ export const AuthScreen = () => {
                       name="email"
                       value={registerData.email}
                       onChange={handleRegisterChange}
-                      placeholder="Email"
-                      className="bg-[#1e1e1e] border-gray-700 text-white placeholder:text-gray-500 rounded-lg focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+                      placeholder="your@email.com"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground rounded-lg focus:border-primary focus:ring-1 focus:ring-primary h-12 text-base px-4" // Increased height and padding
                       required
                     />
                     <Input
@@ -225,8 +225,8 @@ export const AuthScreen = () => {
                       name="password"
                       value={registerData.password}
                       onChange={handleRegisterChange}
-                      placeholder="Password"
-                      className="bg-[#1e1e1e] border-gray-700 text-white placeholder:text-gray-500 rounded-lg focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+                      placeholder="Create a Password"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground rounded-lg focus:border-primary focus:ring-1 focus:ring-primary h-12 text-base px-4" // Increased height and padding
                       required
                     />
                     <Input
@@ -235,25 +235,25 @@ export const AuthScreen = () => {
                       value={registerData.password_confirmation}
                       onChange={handleRegisterChange}
                       placeholder="Confirm Password"
-                      className="bg-[#1e1e1e] border-gray-700 text-white placeholder:text-gray-500 rounded-lg focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground rounded-lg focus:border-primary focus:ring-1 focus:ring-primary h-12 text-base px-4" // Increased height and padding
                       required
                     />
                   </div>
                   <Button
                     type="submit"
-                    className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white transition-colors duration-200 rounded-lg py-2.5"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground transition-colors duration-200 rounded-lg py-3 text-base sm:text-lg font-semibold h-12 flex items-center justify-center" // Increased height, ensured flex centering for icon
                     disabled={authOperationLoading}
                   >
-                     <UserPlus className="mr-2 h-4 w-4" /> {authOperationLoading ? 'Creating Account...' : 'Create Account'}
+                     <UserPlus className="mr-2 h-5 w-5" /> {authOperationLoading ? 'Creating Account...' : 'Create Account'}
                   </Button>
-                  <div className="text-center text-sm text-gray-400">
+                  <div className="text-center text-sm text-muted-foreground pt-2">
                     Already have an account?{' '}
                     <button
                       type="button"
                       onClick={() => switchMode('login')}
-                      className="font-medium text-[#2563eb] hover:underline focus:outline-none"
+                      className="font-medium text-primary hover:underline focus:outline-none"
                     >
-                      Login
+                      Login Here
                     </button>
                   </div>
                 </form>

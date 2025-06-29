@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { 
   LogOut, 
   MessageSquare, 
-  LayoutDashboard,
   User,
   Menu,
   X
@@ -19,8 +18,14 @@ interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
+// Define a more specific type for the auth context values we use here
+interface AppAuthContext {
+  logout: () => Promise<void>;
+  // Add other properties from useAuth if needed by this component
+}
+
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const { logout } = useAuth();
+  const { logout } = useAuth() as AppAuthContext; // Cast to the defined type
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -45,31 +50,31 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Top Navigation Bar */}
-      <header className="bg-gray-800 border-b border-gray-700 shadow-lg">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-xl font-bold text-blue-500">AI Agent</span>
+      <header className="bg-card border-b border-border shadow-md sticky top-0 z-50">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <span className="text-2xl font-semibold text-primary">AI Agent</span>
           </div>
           
           {/* Mobile Menu Button */}
           <button 
-            className="md:hidden text-gray-400 hover:text-white"
+            className="md:hidden text-muted-foreground hover:text-primary focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary rounded-md p-1"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            <span className="sr-only">Open main menu</span>
+            {isMobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
           </button>
           
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-1">
-            {/* <NavItem href="/dashboard" icon={<LayoutDashboard size={20} />} text="Dashboard" /> */}
+          <nav className="hidden md:flex items-center space-x-2">
             <NavItem href="/chat" icon={<MessageSquare size={20} />} text="Chat" />
             <NavItem href="/profile" icon={<User size={20} />} text="Profile" />
             <Button 
               variant="ghost" 
               onClick={handleLogout}
-              className="text-gray-400 hover:text-white hover:bg-red-900/20 flex items-center space-x-2 px-3 py-2"
+              className="text-muted-foreground hover:text-primary hover:bg-destructive/10 flex items-center space-x-2 px-3 py-2 rounded-md"
             >
               <LogOut size={20} />
               <span>Logout</span>
@@ -77,37 +82,31 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           </nav>
         </div>
         
-        {/* Mobile Navigation */}
+        {/* Mobile Navigation - Improved Styling */}
         {isMobileMenuOpen && (
-          <div className="md:hidden bg-gray-800 border-t border-gray-700 p-4">
-            <nav className="flex flex-col space-y-2">
-              {/* <MobileNavItem 
-                href="/dashboard" 
-                icon={<LayoutDashboard size={20} />} 
-                text="Dashboard" 
-                onClick={() => setIsMobileMenuOpen(false)}
-              /> */}
+          <div className="md:hidden bg-card border-t border-border shadow-lg">
+            <nav className="flex flex-col space-y-1 p-2">
               <MobileNavItem 
                 href="/chat" 
-                icon={<MessageSquare size={20} />} 
+                icon={<MessageSquare size={22} />} 
                 text="Chat" 
                 onClick={() => setIsMobileMenuOpen(false)}
               />
               <MobileNavItem 
                 href="/profile" 
-                icon={<User size={20} />} 
+                icon={<User size={22} />} 
                 text="Profile" 
                 onClick={() => setIsMobileMenuOpen(false)}
-                />
+              />
               <Button
                 variant="ghost"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   handleLogout();
                 }}
-                className="w-full justify-start text-gray-400 hover:text-white hover:bg-red-900/20 flex items-center space-x-2"
+                className="w-full justify-start text-muted-foreground hover:text-primary hover:bg-destructive/10 flex items-center space-x-2 px-3 py-3 text-base rounded-md"
               >
-                <LogOut size={20} />
+                <LogOut size={22} />
                 <span>Logout</span>
               </Button>
             </nav>
@@ -116,50 +115,49 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1">
+      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {children}
       </main>
       
       {/* Footer */}
-      <footer className="bg-gray-800 border-t border-gray-700 p-4 text-center text-gray-400 text-sm">
-        <p>© {new Date().getFullYear()} AI Agent. All rights reserved.</p>
+      <footer className="bg-card border-t border-border p-4 text-center text-muted-foreground text-sm">
+        <p>© {new Date().getFullYear()} AI Agent. All rights reserved. </p>
       </footer>
 
       <Toaster 
-        position="top-right"
+        position="bottom-right"
         toastOptions={{
-          // Default options for all toasts
-          className: '',
+          className: 'bg-popover text-popover-foreground border border-border rounded-lg shadow-lg',
           duration: 5000,
           style: {
-            background: '#1A1A1A',
-            color: '#fff',
+            background: 'hsl(var(--popover))',
+            color: 'hsl(var(--popover-foreground))',
+            border: `1px solid hsl(var(--border))`,
           },
-          // Custom success color
           success: {
             iconTheme: {
-              primary: '#10B981',
-              secondary: '#1A1A1A',
+              primary: 'hsl(var(--primary))',
+              secondary: 'hsl(var(--background))',
             },
           },
-          // Custom error color
           error: {
             iconTheme: {
-              primary: '#EF4444',
-              secondary: '#1A1A1A',
+              primary: 'hsl(var(--destructive))',
+              secondary: 'hsl(var(--background))',
             },
           },
         }}
       />
-
-
     </div>
   );
 };
 
-// Helper components for navigation items
+// Helper components for navigation items - Adjusted Styling
 const NavItem = ({ href, icon, text }: { href: string, icon: React.ReactNode, text: string }) => (
-  <Link href={href} className="text-gray-400 hover:text-white hover:bg-gray-700 flex items-center space-x-2 rounded-md px-3 py-2">
+  <Link 
+    href={href} 
+    className="text-muted-foreground hover:text-primary hover:bg-accent focus-visible:bg-accent focus-visible:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium transition-colors"
+  >
     {icon}
     <span>{text}</span>
   </Link>
@@ -168,7 +166,7 @@ const NavItem = ({ href, icon, text }: { href: string, icon: React.ReactNode, te
 const MobileNavItem = ({ href, icon, text, onClick }: { href: string, icon: React.ReactNode, text: string, onClick: () => void }) => (
   <Link 
     href={href} 
-    className="text-gray-400 hover:text-white hover:bg-gray-700 flex items-center space-x-2 rounded-md px-3 py-2"
+    className="text-muted-foreground hover:text-primary hover:bg-accent focus-visible:bg-accent focus-visible:text-accent-foreground focus:outline-none flex items-center space-x-3 rounded-md px-3 py-3 text-base font-medium transition-colors"
     onClick={onClick}
   >
     {icon}
